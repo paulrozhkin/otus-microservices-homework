@@ -19,6 +19,15 @@ spec:
         - name: health-app
           image: paulrozhkin/otus-microservices-homework-03:latest
           imagePullPolicy: IfNotPresent
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
           ports:
             - containerPort: 8000
               protocol: TCP

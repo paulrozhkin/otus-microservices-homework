@@ -25,7 +25,14 @@ cd ../
 ```aiignore
 cd ./app
 kubectl apply -n health-service -f .
-5. Если minikube запущен с driver=docker, то выполнить тунелирование:
+cd ..
+```
+6. Если minikube запущен с driver=docker, то выполнить тунелирование:
+```
 `minikube tunnel
 ```
-6. **TODO: В РАБОТЕ**
+7. Выполнить postman тест:
+```aiignore
+cd ./postman
+newman run OTUS-homework-3.postman_collection.json
+```

@@ -3,14 +3,16 @@ kind: Ingress
 metadata:
   name: health-service-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /health
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
   rules:
-    - http:
+    - host: arch.homework
+      http:
         paths:
-          - path: /otusapp/rozhkin
-            pathType: Prefix
+          - path: /otusapp/rozhkin(/|$)(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: health-service

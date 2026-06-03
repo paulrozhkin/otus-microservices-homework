@@ -32,7 +32,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://arch.homework/otusapp/rozhkin",
+          "raw": "http://arch.homework/otusapp/rozhkin/health",
           "protocol": "http",
           "host": [
             "arch",
@@ -40,7 +40,8 @@
           ],
           "path": [
             "otusapp",
-            "rozhkin"
+            "rozhkin",
+            "health"
           ]
         }
       },

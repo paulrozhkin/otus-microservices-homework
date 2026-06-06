@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "otus-microservices-homework-04",
+    "env": "development"
+  },
+  "http": {
+    "addr": "0.0.0.0:8000",
+    "readTimeout": "5s",
+    "writeTimeout": "5s",
+    "idleTimeout": "60s",
+    "shutdownTimeout": "15s"
+  }
+}

@@ -95,7 +95,7 @@ func configureReader(v *viper.Viper) {
 }
 
 func setDefaults(v *viper.Viper) {
-	v.SetDefault("app.env", "local")
+	v.SetDefault("app.env", "production")
 	v.SetDefault("app.name", "user-service")
 
 	v.SetDefault("http.addr", ":8080")

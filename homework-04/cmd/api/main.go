@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/app"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/config"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/entity"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/repositories"
 )
 
 func main() {
@@ -18,9 +21,31 @@ func main() {
 	)
 	defer stop()
 
+	mode := "serve"
+	if len(os.Args) > 1 {
+		mode = os.Args[1]
+	}
+	isMigration := false
+	switch mode {
+	case "serve":
+	case "migrate":
+		isMigration = true
+	default:
+		log.Fatalf("unknown mode: %s", mode)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
+	}
+
+	if isMigration {
+		err = runMigrations(cfg)
+		if err != nil {
+			log.Fatalf("failed to migrate db due to: %v", err)
+		}
+		log.Println("migrations completed")
+		return
 	}
 
 	application, err := app.New(cfg)
@@ -31,4 +56,15 @@ func main() {
 	if err := application.Run(ctx); err != nil {
 		log.Fatalf("application stopped with error: %v", err)
 	}
+}
+
+func runMigrations(cfg config.Config) error {
+	db, err := repositories.NewDbConnection(cfg.DBConfig)
+	if err != nil {
+		return err
+	}
+	if err = db.AutoMigrate(&entity.User{}); err != nil {
+		return err
+	}
+	return nil
 }

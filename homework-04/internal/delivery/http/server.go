@@ -45,7 +45,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 		{
 			usersGroup.POST("", userHandler.Create)
 			usersGroup.GET("/:id", userHandler.GetByID)
-			usersGroup.GET("", userHandler.List)
+			usersGroup.GET("", userHandler.GetAll)
 			usersGroup.PATCH("/:id", userHandler.Update)
 			usersGroup.DELETE("/:id", userHandler.Delete)
 		}

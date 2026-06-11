@@ -19,6 +19,18 @@ func NewUserHandler(logger *zap.Logger, userRepository repositories.UserReposito
 	return &UserHandler{userRepository: userRepository, logger: logger}
 }
 
+func (h *UserHandler) GetAll(c *gin.Context) {
+	users, err := h.userRepository.GetAllUsers(c)
+	if err != nil {
+		ResponseError(c, h.logger, http.StatusInternalServerError, err)
+		return
+	}
+	if len(users) == 0 {
+		users = []*entity.User{}
+	}
+	c.JSON(http.StatusOK, users)
+}
+
 func (h *UserHandler) Create(c *gin.Context) {
 	request := &entity.User{}
 	err := c.ShouldBindJSON(request)
@@ -36,10 +48,6 @@ func (h *UserHandler) Create(c *gin.Context) {
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
-	c.Error(fmt.Errorf("method is not implemented"))
-}
-
-func (h *UserHandler) List(c *gin.Context) {
 	c.Error(fmt.Errorf("method is not implemented"))
 }
 

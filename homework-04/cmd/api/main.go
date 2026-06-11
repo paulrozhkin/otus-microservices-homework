@@ -9,7 +9,6 @@ import (
 
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/app"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/config"
-	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/repositories"
 )
 
@@ -63,7 +62,7 @@ func runMigrations(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	if err = db.AutoMigrate(&entity.User{}); err != nil {
+	if err = db.AutoMigrate(&repositories.User{}); err != nil {
 		return err
 	}
 	return nil

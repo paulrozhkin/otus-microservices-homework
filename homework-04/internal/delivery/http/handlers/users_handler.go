@@ -2,19 +2,37 @@ package handlers
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/entity"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/repositories"
+	"go.uber.org/zap"
 )
 
 type UserHandler struct {
+	userRepository repositories.UserRepository
+	logger         *zap.Logger
 }
 
-func NewUserHandler() *UserHandler {
-	return &UserHandler{}
+func NewUserHandler(logger *zap.Logger, userRepository repositories.UserRepository) *UserHandler {
+	return &UserHandler{userRepository: userRepository, logger: logger}
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
-	c.Error(fmt.Errorf("method is not implemented"))
+	request := &entity.User{}
+	err := c.ShouldBindJSON(request)
+	if err != nil {
+		ResponseError(c, h.logger, http.StatusBadRequest, err)
+		return
+	}
+	createdUser, err := h.userRepository.CreateUser(c, request)
+	if err != nil {
+		ResponseError(c, h.logger, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, createdUser)
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {

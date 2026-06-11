@@ -5,12 +5,14 @@ import (
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/delivery/http/handlers"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/delivery/http/middleware"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/repositories"
 	"go.uber.org/zap"
 )
 
 type RouterConfig struct {
-	Config config.Config
-	Logger *zap.Logger
+	Config         config.Config
+	Logger         *zap.Logger
+	UserRepository repositories.UserRepository
 }
 
 func NewRouter(cfg RouterConfig) *gin.Engine {
@@ -35,7 +37,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	}))
 	r.Use(middleware.ErrorHandler(cfg.Logger))
 
-	userHandler := handlers.NewUserHandler()
+	userHandler := handlers.NewUserHandler(cfg.Logger, cfg.UserRepository)
 
 	api := r.Group("/api/v1")
 	{

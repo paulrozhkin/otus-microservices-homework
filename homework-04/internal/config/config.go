@@ -16,8 +16,9 @@ const (
 )
 
 type Config struct {
-	App  AppConfig  `mapstructure:"app" validate:"required"`
-	Http HttpConfig `mapstructure:"http" validate:"required"`
+	App      AppConfig  `mapstructure:"app" validate:"required"`
+	Http     HttpConfig `mapstructure:"http" validate:"required"`
+	DBConfig DBConfig   `mapstructure:"db" validate:"required"`
 }
 
 type AppConfig struct {
@@ -31,6 +32,16 @@ type HttpConfig struct {
 	WriteTimeout    time.Duration `mapstructure:"writeTimeout"`
 	IdleTimeout     time.Duration `mapstructure:"idleTimeout"`
 	ShutdownTimeout time.Duration `mapstructure:"shutdownTimeout"`
+}
+
+type DBConfig struct {
+	Host     string `mapstructure:"host" validate:"required,hostname"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user" validate:"required"`
+	Password string `mapstructure:"password" validate:"required"`
+	DBName   string `mapstructure:"dbName" validate:"required"`
+	SSLMode  string `mapstructure:"sslmode" validate:"oneof=disable enable"`
+	TimeZone string `mapstructure:"timeZone"`
 }
 
 func (c Config) IsProduction() bool {
@@ -92,6 +103,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("http.write_timeout", 10*time.Second)
 	v.SetDefault("http.idle_timeout", 60*time.Second)
 	v.SetDefault("http.shutdown_timeout", 15*time.Second)
+
+	v.SetDefault("db.port", 5432)
+	v.SetDefault("db.sslmode", "disable")
+	v.SetDefault("db.timeZone", "UTC")
 }
 
 func validateConfig(cfg Config) error {

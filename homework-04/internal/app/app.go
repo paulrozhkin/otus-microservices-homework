@@ -3,11 +3,15 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/config"
 	httpserver "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/delivery/http"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/repositories"
 	"go.uber.org/zap"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type App struct {
@@ -22,9 +26,24 @@ func New(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
+	// Format the Data Source Name (DSN)
+	dbConfig := cfg.DBConfig
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
+		dbConfig.Host, dbConfig.User, dbConfig.Password,
+		dbConfig.DBName, dbConfig.Port, dbConfig.SSLMode, dbConfig.TimeZone,
+	)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
+
+	userRepository := repositories.NewUserRepository(db)
+
 	router := httpserver.NewRouter(httpserver.RouterConfig{
-		Config: cfg,
-		Logger: logger,
+		Config:         cfg,
+		Logger:         logger,
+		UserRepository: userRepository,
 	})
 
 	server := &http.Server{

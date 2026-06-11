@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,11 +17,24 @@ func ErrorHandler(logger *zap.Logger) gin.HandlerFunc {
 			return
 		}
 
-		err := c.Errors.Last().Err
+		ginErr := c.Errors.Last()
+		err := ginErr.Err
 		requestID, _ := c.Get(RequestIDKey)
 
 		status := http.StatusInternalServerError
 		message := http.StatusText(status)
+
+		switch {
+		case ginErr.Type == gin.ErrorTypeBind:
+			status = http.StatusBadRequest
+			message = err.Error()
+		case errors.Is(err, entity.ErrAlreadyExists):
+			status = http.StatusConflict
+			message = err.Error()
+		case errors.Is(err, entity.ErrNotFound):
+			status = http.StatusNotFound
+			message = err.Error()
+		}
 
 		logger.Error("request failed",
 			zap.Error(err),

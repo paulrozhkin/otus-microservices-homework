@@ -22,7 +22,7 @@ func NewUserHandler(logger *zap.Logger, userRepository repositories.UserReposito
 func (h *UserHandler) GetAll(c *gin.Context) {
 	users, err := h.userRepository.GetAllUsers(c)
 	if err != nil {
-		ResponseError(c, h.logger, http.StatusInternalServerError, err)
+		c.Error(err)
 		return
 	}
 	if len(users) == 0 {
@@ -35,12 +35,12 @@ func (h *UserHandler) Create(c *gin.Context) {
 	request := &entity.User{}
 	err := c.ShouldBindJSON(request)
 	if err != nil {
-		ResponseError(c, h.logger, http.StatusBadRequest, err)
+		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
 	createdUser, err := h.userRepository.CreateUser(c, request)
 	if err != nil {
-		ResponseError(c, h.logger, http.StatusInternalServerError, err)
+		c.Error(err)
 		return
 	}
 

@@ -2,10 +2,15 @@ package repositories
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/entity"
 	"gorm.io/gorm"
 )
+
+const uniqueViolationCode = "23505"
 
 type User struct {
 	gorm.Model
@@ -68,6 +73,10 @@ func (u *UserRepositoryImpl) CreateUser(c context.Context, user *entity.User) (*
 	}
 	result := u.db.WithContext(c).Create(userDao)
 	if result.Error != nil {
+		if isUniqueViolation(result.Error) {
+			return nil, fmt.Errorf("%w: user with username %q", entity.ErrAlreadyExists, user.Username)
+		}
+
 		return nil, result.Error
 	}
 	return user, nil
@@ -81,4 +90,9 @@ func (u *UserRepositoryImpl) UpdateUser(c context.Context, user *entity.User) (*
 func (u *UserRepositoryImpl) DeleteUser(c context.Context, userID int64) error {
 	//TODO implement me
 	panic("implement me")
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode
 }

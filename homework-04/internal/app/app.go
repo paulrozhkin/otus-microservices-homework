@@ -28,12 +28,11 @@ func New(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	userRepository := repositories.NewUserRepository(db)
-
 	router := httpserver.NewRouter(httpserver.RouterConfig{
 		Config:         cfg,
 		Logger:         logger,
-		UserRepository: userRepository,
+		UserRepository: repositories.NewUserRepository(db),
+		HealthChecker:  repositories.NewDBHealthChecker(db),
 	})
 
 	server := &http.Server{

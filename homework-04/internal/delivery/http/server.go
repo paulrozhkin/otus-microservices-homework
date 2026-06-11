@@ -1,10 +1,16 @@
 package http
 
 import (
+	"context"
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/docs"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/delivery/http/handlers"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/delivery/http/middleware"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-04/internal/repositories"
 	"go.uber.org/zap"
 )
@@ -13,6 +19,7 @@ type RouterConfig struct {
 	Config         config.Config
 	Logger         *zap.Logger
 	UserRepository repositories.UserRepository
+	HealthChecker  repositories.HealthChecker
 }
 
 func NewRouter(cfg RouterConfig) *gin.Engine {
@@ -37,6 +44,12 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	}))
 	r.Use(middleware.ErrorHandler(cfg.Logger))
 
+	r.GET("/health", liveness) // Обратная совместимость с предыдущим ДЗ
+	r.GET("/livez", liveness)
+	r.GET("/readyz", readiness(cfg.HealthChecker))
+	r.GET("/swagger.yaml", swaggerYAML)
+	r.GET("/swagger", swaggerUI)
+
 	userHandler := handlers.NewUserHandler(cfg.Logger, cfg.UserRepository)
 
 	api := r.Group("/api/v1")
@@ -52,4 +65,50 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	}
 
 	return r
+}
+
+func liveness(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func readiness(healthChecker repositories.HealthChecker) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
+		defer cancel()
+		
+		if err := healthChecker.Ping(ctx); err != nil {
+			c.Error(entity.ErrServiceUnavailable)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	}
+}
+
+func swaggerYAML(c *gin.Context) {
+	c.Data(http.StatusOK, "application/yaml; charset=utf-8", docs.SwaggerYAML)
+}
+
+func swaggerUI(c *gin.Context) {
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User Service Swagger</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function() {
+      window.ui = SwaggerUIBundle({
+        url: "/swagger.yaml",
+        dom_id: "#swagger-ui"
+      });
+    };
+  </script>
+</body>
+</html>`))
 }

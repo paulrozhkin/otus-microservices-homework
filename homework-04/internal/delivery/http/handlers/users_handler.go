@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -44,17 +43,60 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, createdUser)
+	c.JSON(http.StatusCreated, createdUser)
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
-	c.Error(fmt.Errorf("method is not implemented"))
+	var params RequestParams
+
+	// Binds the path parameters to the struct
+	if err := c.ShouldBindUri(&params); err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+	user, err := h.userRepository.GetUserByID(c, params.Id)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, user)
 }
 
 func (h *UserHandler) Update(c *gin.Context) {
-	c.Error(fmt.Errorf("method is not implemented"))
+	var params RequestParams
+
+	// Binds the path parameters to the struct
+	if err := c.ShouldBindUri(&params); err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+	request := &entity.User{}
+	err := c.ShouldBindJSON(request)
+	if err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+	request.Id = params.Id
+	user, err := h.userRepository.UpdateUser(c, request)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, user)
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {
-	c.Error(fmt.Errorf("method is not implemented"))
+	var params RequestParams
+
+	// Binds the path parameters to the struct
+	if err := c.ShouldBindUri(&params); err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+	err := h.userRepository.DeleteUser(c, params.Id)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.Status(http.StatusOK)
 }

@@ -7,3 +7,31 @@ RESTful CRUD with Helm для домашней работы на OTUS
 2. `docker push paulrozhkin/otus-microservices-homework-04:latest`
 3. `docker run -p 8000:8000 paulrozhkin/otus-microservices-homework-04:latest`
 
+
+## Работа с k8s
+1. Переходим в k8s дирректорию:
+```aiignore
+cd ./deployment/k8s
+```
+2. Создаем namespace:
+```aiignore
+kubectl create namespace users-service
+ ```
+3. Устанавливаем nginx ingress:
+```aiignore
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx/
+helm repo update
+helm install nginx ingress-nginx/ingress-nginx --namespace users-service -f nginx-ingress.yaml
+```
+4. Применяем манифесты
+```aiignore
+kubectl apply -n users-service -f .
+```
+5. Если minikube запущен с driver=docker, то выполнить тунелирование:
+```aiignore
+minikube tunnel
+```
+6. Выполнить postman тест:
+```aiignore
+newman run ./../../postman/OTUS-homework-4.postman_collection.json
+```

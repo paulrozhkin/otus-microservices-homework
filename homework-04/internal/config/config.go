@@ -26,6 +26,10 @@ func (s SecretString) MarshalJSON() ([]byte, error) {
 	return json.Marshal("****")
 }
 
+func (s SecretString) Value() string {
+	return string(s)
+}
+
 type Config struct {
 	App      AppConfig  `mapstructure:"app" validate:"required"`
 	Http     HttpConfig `mapstructure:"http" validate:"required"`
@@ -63,7 +67,9 @@ func Load() (Config, error) {
 	v := viper.New()
 
 	setDefaults(v)
-	configureReader(v)
+	if err := configureReader(v); err != nil {
+		return Config{}, err
+	}
 
 	if err := readConfig(v); err != nil {
 		return Config{}, err
@@ -93,7 +99,7 @@ func readConfig(v *viper.Viper) error {
 	return nil
 }
 
-func configureReader(v *viper.Viper) {
+func configureReader(v *viper.Viper) error {
 	v.SetConfigName("config")
 	v.SetConfigType("json")
 
@@ -103,6 +109,8 @@ func configureReader(v *viper.Viper) {
 	v.SetEnvPrefix("OTUS_USER_SERVICE")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
+
+	return bindEnvs(v)
 }
 
 func setDefaults(v *viper.Viper) {
@@ -110,14 +118,41 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.name", "users-service")
 
 	v.SetDefault("http.addr", ":8000")
-	v.SetDefault("http.read_timeout", 5*time.Second)
-	v.SetDefault("http.write_timeout", 10*time.Second)
-	v.SetDefault("http.idle_timeout", 60*time.Second)
-	v.SetDefault("http.shutdown_timeout", 15*time.Second)
+	v.SetDefault("http.readTimeout", 5*time.Second)
+	v.SetDefault("http.writeTimeout", 10*time.Second)
+	v.SetDefault("http.idleTimeout", 60*time.Second)
+	v.SetDefault("http.shutdownTimeout", 15*time.Second)
 
 	v.SetDefault("db.port", 5432)
 	v.SetDefault("db.sslmode", "disable")
 	v.SetDefault("db.timeZone", "UTC")
+}
+
+func bindEnvs(v *viper.Viper) error {
+	envs := map[string]string{
+		"app.env":              "OTUS_USER_SERVICE_APP_ENV",
+		"app.name":             "OTUS_USER_SERVICE_APP_NAME",
+		"http.addr":            "OTUS_USER_SERVICE_HTTP_ADDR",
+		"http.readTimeout":     "OTUS_USER_SERVICE_HTTP_READ_TIMEOUT",
+		"http.writeTimeout":    "OTUS_USER_SERVICE_HTTP_WRITE_TIMEOUT",
+		"http.idleTimeout":     "OTUS_USER_SERVICE_HTTP_IDLE_TIMEOUT",
+		"http.shutdownTimeout": "OTUS_USER_SERVICE_HTTP_SHUTDOWN_TIMEOUT",
+		"db.host":              "OTUS_USER_SERVICE_DB_HOST",
+		"db.port":              "OTUS_USER_SERVICE_DB_PORT",
+		"db.user":              "OTUS_USER_SERVICE_DB_USER",
+		"db.password":          "OTUS_USER_SERVICE_DB_PASSWORD",
+		"db.dbName":            "OTUS_USER_SERVICE_DB_DBNAME",
+		"db.sslmode":           "OTUS_USER_SERVICE_DB_SSLMODE",
+		"db.timeZone":          "OTUS_USER_SERVICE_DB_TIMEZONE",
+	}
+
+	for key, env := range envs {
+		if err := v.BindEnv(key, env); err != nil {
+			return fmt.Errorf("failed to bind env %s: %w", env, err)
+		}
+	}
+
+	return nil
 }
 
 func validateConfig(cfg Config) error {

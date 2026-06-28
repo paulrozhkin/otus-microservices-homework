@@ -6,8 +6,9 @@ data:
   APP_ENV: "production"
   APP_NAME: "users-service"
 
-  HTTP_ADDR: ":8080"
+  HTTP_ADDR: ":8000"
   HTTP_SHUTDOWN_TIMEOUT: "5s"
 
+  DB_HOST: "users-db-service"
   DB_PORT: "5432"
   DB_TIMEZONE: "UTC"

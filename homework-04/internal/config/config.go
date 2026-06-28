@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,6 +15,16 @@ const (
 	ProductionEnv  = "production"
 	DevelopmentEnv = "development"
 )
+
+type SecretString string
+
+func (s SecretString) String() string {
+	return "****"
+}
+
+func (s SecretString) MarshalJSON() ([]byte, error) {
+	return json.Marshal("****")
+}
 
 type Config struct {
 	App      AppConfig  `mapstructure:"app" validate:"required"`
@@ -35,13 +46,13 @@ type HttpConfig struct {
 }
 
 type DBConfig struct {
-	Host     string `mapstructure:"host" validate:"required,hostname"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user" validate:"required"`
-	Password string `mapstructure:"password" validate:"required"`
-	DBName   string `mapstructure:"dbName" validate:"required"`
-	SSLMode  string `mapstructure:"sslmode" validate:"oneof=disable enable"`
-	TimeZone string `mapstructure:"timeZone"`
+	Host     string       `mapstructure:"host" validate:"required,hostname"`
+	Port     int          `mapstructure:"port"`
+	User     SecretString `mapstructure:"user" validate:"required"`
+	Password SecretString `mapstructure:"password" validate:"required"`
+	DBName   string       `mapstructure:"dbName" validate:"required"`
+	SSLMode  string       `mapstructure:"sslmode" validate:"oneof=disable enable"`
+	TimeZone string       `mapstructure:"timeZone"`
 }
 
 func (c Config) IsProduction() bool {
@@ -96,9 +107,9 @@ func configureReader(v *viper.Viper) {
 
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.env", "production")
-	v.SetDefault("app.name", "user-service")
+	v.SetDefault("app.name", "users-service")
 
-	v.SetDefault("http.addr", ":8080")
+	v.SetDefault("http.addr", ":8000")
 	v.SetDefault("http.read_timeout", 5*time.Second)
 	v.SetDefault("http.write_timeout", 10*time.Second)
 	v.SetDefault("http.idle_timeout", 60*time.Second)

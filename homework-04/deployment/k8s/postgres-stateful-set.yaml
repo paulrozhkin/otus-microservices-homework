@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: users-psql
+  labels:
+    app: users-psql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: users-psql
+  template:
+    metadata:
+      name: users-psql
+      labels:
+        app: users-psql
+    spec:
+      containers:
+        - name: users-psql
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: users-secret
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+      restartPolicy: Always
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 500Mi
+      

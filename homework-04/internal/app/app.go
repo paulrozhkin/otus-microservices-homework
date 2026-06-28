@@ -23,6 +23,8 @@ func New(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
+	logger.Info("Configuration initialized", zap.Any("config", cfg))
+
 	db, err := repositories.NewDbConnection(cfg.DBConfig)
 	if err != nil {
 		return nil, err

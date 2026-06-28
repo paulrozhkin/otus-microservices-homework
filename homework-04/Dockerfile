@@ -6,7 +6,7 @@ WORKDIR /app
 COPY go.* ./
 RUN go mod download
 COPY . ./
-RUN go build -v -o server
+RUN go build -v -o server ./cmd/api/main.go
 
 # Запуск приложения выполняем в debian:bookworm-slim
 FROM debian:bookworm-slim

@@ -1,16 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "users-service.fullname" . }}
+  name: {{ .Values.names.app }}
   labels:
     {{- include "users-service.labels" . | nindent 4 }}
+    app: {{ .Values.names.app }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
   selector:
     matchLabels:
-      {{- include "users-service.selectorLabels" . | nindent 6 }}
+      app: {{ .Values.names.app }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -19,31 +18,38 @@ spec:
       {{- end }}
       labels:
         {{- include "users-service.selectorLabels" . | nindent 8 }}
+        app: {{ .Values.names.app }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "users-service.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: {{ .Chart.Name }}
+        - name: {{ .Values.names.app }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.app.containerPort }}
               protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ .Values.names.secret }}
+              prefix: OTUS_USER_SERVICE_
+            - configMapRef:
+                name: {{ .Values.names.configMap }}
+              prefix: OTUS_USER_SERVICE_
           livenessProbe:
             httpGet:
-              path: /
+              path: /livez
               port: http
           readinessProbe:
             httpGet:
-              path: /
+              path: /readyz
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

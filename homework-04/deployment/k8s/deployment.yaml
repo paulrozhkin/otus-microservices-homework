@@ -20,7 +20,7 @@ spec:
           image: paulrozhkin/otus-microservices-homework-04:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8080
+            - containerPort: 8000
               protocol: TCP
           envFrom:
             - secretRef:

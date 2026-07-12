@@ -47,6 +47,14 @@ service:
   port: 80
   targetPort: 8000
 
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+  annotations: {}
+  namespaceSelector: {}
+
 ingress:
   enabled: true
   className: nginx
@@ -73,6 +81,12 @@ ingress-nginx:
         https: 443
     service:
       type: NodePort
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        additionalLabels: {}
+        scrapeInterval: 15s
 
 postgresql:
   enabled: true
@@ -86,6 +100,13 @@ postgresql:
   primary:
     persistence:
       size: 500Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 15s
+      scrapeTimeout: 10s
+      labels: {}
 
 migration:
   enabled: true

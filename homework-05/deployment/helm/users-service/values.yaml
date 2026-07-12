@@ -55,6 +55,14 @@ serviceMonitor:
   annotations: {}
   namespaceSelector: {}
 
+grafanaDashboard:
+  enabled: true
+  namespace: monitoring
+  label: grafana_dashboard
+  labelValue: "1"
+  annotations: {}
+  labels: {}
+
 ingress:
   enabled: true
   className: nginx

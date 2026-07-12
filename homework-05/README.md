@@ -28,7 +28,26 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false `
   --set grafana.adminPassword=admin
 ```
-4. Подтягиваем зависимости и устанавливаем chart:
+4. Для доступа к стеку мониторинга следовать инструкциями из возврата предыдущей команды. 
+    Нужно прокинуть доступ до Grafana через инструкции "Access Grafana local instance". Дубликат возврата:
+```aiignore
+Get Grafana 'admin' user password by running:
+
+  kubectl --namespace monitoring get secrets kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 -d ; echo
+
+Access Grafana local instance:
+
+  export POD_NAME=$(kubectl --namespace monitoring get pod -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=kube-prometheus-stack" -oname)
+  kubectl --namespace monitoring port-forward $POD_NAME 3000
+
+Get your grafana admin user password by running:
+
+  kubectl get secret --namespace monitoring -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+
+
+Visit https://github.com/prometheus-operator/kube-prometheus for instructions on how to create & configure Alertmanager and Prometheus instances using the Operator.
+```
+5. Подтягиваем зависимости и устанавливаем chart:
 ```aiignore
 helm dependency build .
 
@@ -37,11 +56,11 @@ helm upgrade --install users-service . `
   --create-namespace `
   --wait
 ```
-5. Если minikube запущен с driver=docker, то выполнить тунелирование:
+6. Если minikube запущен с driver=docker, то выполнить тунелирование:
 ```aiignore
 minikube tunnel
 ```
-6. Выполнить postman тест:
+7. Выполнить postman тест:
 ```aiignore
 newman run ./../../postman/OTUS-homework-5.postman_collection.json
 ```

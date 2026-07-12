@@ -63,6 +63,14 @@ grafanaDashboard:
   annotations: {}
   labels: {}
 
+grafanaAlerting:
+  enabled: true
+  namespace: monitoring
+  label: grafana_alert
+  labelValue: "1"
+  annotations: {}
+  labels: {}
+
 ingress:
   enabled: true
   className: nginx

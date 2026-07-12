@@ -26,7 +26,10 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --create-namespace `
   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false `
   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false `
-  --set grafana.adminPassword=admin
+  --set grafana.adminPassword=admin `
+  --set grafana.sidecar.alerts.enabled=true `
+  --set grafana.sidecar.alerts.label=grafana_alert `
+  --set grafana.sidecar.alerts.searchNamespace=monitoring
 ```
 4. Для доступа к стеку мониторинга следовать инструкциями из возврата предыдущей команды. 
     Нужно прокинуть доступ до Grafana через инструкции "Access Grafana local instance". Дубликат возврата:

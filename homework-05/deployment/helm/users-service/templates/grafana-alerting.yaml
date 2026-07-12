@@ -1,0 +1,20 @@
+{{- if .Values.grafanaAlerting.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.names.service }}-grafana-alerting
+  namespace: {{ .Values.grafanaAlerting.namespace }}
+  labels:
+    {{ .Values.grafanaAlerting.label }}: {{ .Values.grafanaAlerting.labelValue | quote }}
+    {{- include "users-service.labels" . | nindent 4 }}
+    {{- with .Values.grafanaAlerting.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.grafanaAlerting.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  users-service-alert-rules.yaml: |
+{{ .Files.Get "alerting/users-service-alert-rules.yaml" | indent 4 }}
+{{- end }}

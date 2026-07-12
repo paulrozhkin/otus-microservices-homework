@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,11 +26,23 @@ var (
 		},
 		[]string{"method", "path"},
 	)
+
+	httpRequestDurationMax = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "http_request_duration_seconds_max",
+			Help: "Maximum observed HTTP request duration in seconds since process start",
+		},
+		[]string{"method", "path"},
+	)
+
+	httpRequestDurationMaxMu sync.Mutex
+	httpRequestDurationMaxes = make(map[string]float64)
 )
 
 func init() {
 	prometheus.MustRegister(httpRequestsTotal)
 	prometheus.MustRegister(httpRequestDuration)
+	prometheus.MustRegister(httpRequestDurationMax)
 }
 
 func MetricsMiddleware() gin.HandlerFunc {
@@ -43,5 +56,20 @@ func MetricsMiddleware() gin.HandlerFunc {
 
 		httpRequestsTotal.WithLabelValues(c.Request.Method, c.FullPath(), status).Inc()
 		httpRequestDuration.WithLabelValues(c.Request.Method, c.FullPath()).Observe(duration)
+		observeRequestDurationMax(c.Request.Method, c.FullPath(), duration)
 	}
+}
+
+func observeRequestDurationMax(method, path string, duration float64) {
+	key := method + " " + path
+
+	httpRequestDurationMaxMu.Lock()
+	defer httpRequestDurationMaxMu.Unlock()
+
+	if duration <= httpRequestDurationMaxes[key] {
+		return
+	}
+
+	httpRequestDurationMaxes[key] = duration
+	httpRequestDurationMax.WithLabelValues(method, path).Set(duration)
 }

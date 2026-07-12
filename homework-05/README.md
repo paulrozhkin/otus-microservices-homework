@@ -29,7 +29,12 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --set grafana.adminPassword=admin `
   --set grafana.sidecar.alerts.enabled=true `
   --set grafana.sidecar.alerts.label=grafana_alert `
-  --set grafana.sidecar.alerts.searchNamespace=monitoring
+  --set grafana.sidecar.alerts.searchNamespace=monitoring `
+  --set prometheus.prometheusSpec.retention=2h `
+  --set prometheus.prometheusSpec.resources.requests.memory=512Mi `
+  --set prometheus.prometheusSpec.resources.limits.memory=1Gi `
+  --set grafana.resources.requests.memory=128Mi `
+  --set grafana.resources.limits.memory=512Mi
 ```
 4. Для доступа к стеку мониторинга следовать инструкциями из возврата предыдущей команды. 
     Нужно прокинуть доступ до Grafana через инструкции "Access Grafana local instance". Дубликат возврата:
@@ -71,3 +76,21 @@ newman run ./../../../tests/OTUS-homework-5.postman_collection.json
 ```aiignore
 k6 run ./../../../tests/load-test.js
 ```
+
+## Stress test results
+
+### API metrics
+
+![API metrics](./tests/results/api_metrics.png)
+
+### Ingress metrics
+
+![Ingress metrics](./tests/results/ingress_metrics.png)
+
+### Kubernetes pod metrics
+
+![Kubernetes pod metrics](./tests/results/pod_metrics.png)
+
+### PostgreSQL metrics
+
+![PostgreSQL metrics](./tests/results/psql_metrics.png)

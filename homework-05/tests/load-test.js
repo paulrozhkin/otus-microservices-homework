@@ -6,7 +6,7 @@ const BASE_URL = 'http://arch.homework';
 export const options = {
     stages: [
         { duration: '1m', target: 20 },
-        { duration: '8m', target: 40 },
+        { duration: '8m', target: 20 },
         { duration: '1m', target: 0 },
     ],
 };

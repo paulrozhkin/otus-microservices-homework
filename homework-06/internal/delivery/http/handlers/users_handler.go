@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-06/internal/entity"
@@ -19,6 +20,10 @@ func NewUserHandler(logger *zap.Logger, userRepository repositories.UserReposito
 }
 
 func (h *UserHandler) GetAll(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
 	users, err := h.userRepository.GetAllUsers(c)
 	if err != nil {
 		c.Error(err)
@@ -31,6 +36,10 @@ func (h *UserHandler) GetAll(c *gin.Context) {
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
 	request := &entity.User{}
 	err := c.ShouldBindJSON(request)
 	if err != nil {
@@ -54,6 +63,10 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
+	if !requireAdminOrSameUser(c, params.Id) {
+		return
+	}
+
 	user, err := h.userRepository.GetUserByID(c, params.Id)
 	if err != nil {
 		c.Error(err)
@@ -70,6 +83,10 @@ func (h *UserHandler) Update(c *gin.Context) {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
+	if !requireAdminOrSameUser(c, params.Id) {
+		return
+	}
+
 	request := &entity.User{}
 	err := c.ShouldBindJSON(request)
 	if err != nil {
@@ -93,10 +110,56 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
+	if !requireAdmin(c) {
+		return
+	}
+
 	err := h.userRepository.DeleteUser(c, params.Id)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 	c.Status(http.StatusOK)
+}
+
+func requireAdmin(c *gin.Context) bool {
+	if !hasAuthContext(c) {
+		c.Error(entity.ErrUnauthorized)
+		return false
+	}
+	if hasRole(c, "admin") {
+		return true
+	}
+	c.Error(entity.ErrForbidden)
+	return false
+}
+
+func requireAdminOrSameUser(c *gin.Context, targetUserID int64) bool {
+	currentUserID, ok := currentUserID(c)
+	if !ok || c.GetHeader(authRolesHeader) == "" {
+		c.Error(entity.ErrUnauthorized)
+		return false
+	}
+	if hasRole(c, "admin") {
+		return true
+	}
+	if currentUserID == targetUserID {
+		return true
+	}
+	c.Error(entity.ErrForbidden)
+	return false
+}
+
+func hasAuthContext(c *gin.Context) bool {
+	_, ok := currentUserID(c)
+	return ok && c.GetHeader(authRolesHeader) != ""
+}
+
+func hasRole(c *gin.Context, expected string) bool {
+	for _, role := range strings.Split(c.GetHeader(authRolesHeader), ",") {
+		if strings.EqualFold(strings.TrimSpace(role), expected) {
+			return true
+		}
+	}
+	return false
 }

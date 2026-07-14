@@ -68,6 +68,7 @@ func TestUserHandlerGetAll(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequest(http.MethodGet, "/users", nil)
+			setAdminAuth(c.Request)
 
 			handler.GetAll(c)
 
@@ -105,6 +106,7 @@ func TestUserHandlerCreate(t *testing.T) {
 			"phone": "+71002003040"
 		}`))
 		c.Request.Header.Set("Content-Type", "application/json")
+		setAdminAuth(c.Request)
 
 		handler.Create(c)
 
@@ -129,6 +131,7 @@ func TestUserHandlerCreate(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodPost, "/users", bytes.NewBufferString(`{"username": ""}`))
 		c.Request.Header.Set("Content-Type", "application/json")
+		setAdminAuth(c.Request)
 
 		handler.Create(c)
 
@@ -151,6 +154,7 @@ func TestUserHandlerGetByID(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/users/42", nil)
+	setAdminAuth(c.Request)
 	c.Params = gin.Params{{Key: "id", Value: "42"}}
 
 	handler.GetByID(c)
@@ -182,6 +186,7 @@ func TestUserHandlerUpdate(t *testing.T) {
 		"phone": "+71002003040"
 	}`))
 	c.Request.Header.Set("Content-Type", "application/json")
+	setAdminAuth(c.Request)
 	c.Params = gin.Params{{Key: "id", Value: "42"}}
 
 	handler.Update(c)
@@ -203,10 +208,81 @@ func TestUserHandlerDelete(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodDelete, "/users/42", nil)
+	setAdminAuth(c.Request)
 	c.Params = gin.Params{{Key: "id", Value: "42"}}
 
 	handler.Delete(c)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Empty(t, c.Errors)
+}
+
+func TestUserHandlerAuthorizationForUserRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("denies get all", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockUserRepository(ctrl)
+
+		handler := NewUserHandler(zap.NewNop(), repo)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/users", nil)
+		setUserAuth(c.Request, "42")
+
+		handler.GetAll(c)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Len(t, c.Errors, 1)
+		require.ErrorIs(t, c.Errors.Last().Err, entity.ErrForbidden)
+	})
+
+	t.Run("allows get by own id", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockUserRepository(ctrl)
+		repo.EXPECT().
+			GetUserByID(gomock.Any(), int64(42)).
+			Return(&entity.User{Id: 42, Username: "paul"}, nil)
+
+		handler := NewUserHandler(zap.NewNop(), repo)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/users/42", nil)
+		setUserAuth(c.Request, "42")
+		c.Params = gin.Params{{Key: "id", Value: "42"}}
+
+		handler.GetByID(c)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Empty(t, c.Errors)
+		require.JSONEq(t, `{"id":42,"username":"paul","firstName":"","lastName":"","email":"","phone":""}`, w.Body.String())
+	})
+
+	t.Run("denies get by another id", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockUserRepository(ctrl)
+
+		handler := NewUserHandler(zap.NewNop(), repo)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/users/43", nil)
+		setUserAuth(c.Request, "42")
+		c.Params = gin.Params{{Key: "id", Value: "43"}}
+
+		handler.GetByID(c)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Len(t, c.Errors, 1)
+		require.ErrorIs(t, c.Errors.Last().Err, entity.ErrForbidden)
+	})
+}
+
+func setAdminAuth(r *http.Request) {
+	r.Header.Set(authUserIDHeader, "1")
+	r.Header.Set(authRolesHeader, "admin")
+}
+
+func setUserAuth(r *http.Request, userID string) {
+	r.Header.Set(authUserIDHeader, userID)
+	r.Header.Set(authRolesHeader, "user")
 }

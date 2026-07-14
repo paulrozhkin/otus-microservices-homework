@@ -10,7 +10,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const authUserIDHeader = "X-Auth-UserId"
+const (
+	authUserIDHeader = "X-Auth-UserId"
+	authRolesHeader  = "X-Auth-Roles"
+)
 
 type ProfileHandler struct {
 	userRepository repositories.UserRepository

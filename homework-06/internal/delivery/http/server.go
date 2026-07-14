@@ -56,6 +56,11 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	userHandler := handlers.NewUserHandler(cfg.Logger, cfg.UserRepository)
+	authHandler := handlers.NewAuthHandler(cfg.Logger, cfg.UserRepository)
+
+	r.POST("/register", authHandler.Register)
+	r.POST("/login", authHandler.Login)
+	r.GET("/auth", authHandler.Auth)
 
 	api := r.Group("/api/v1")
 	{

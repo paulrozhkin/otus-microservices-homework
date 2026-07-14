@@ -100,6 +100,21 @@ func (mr *MockUserRepositoryMockRecorder) GetUserByID(c, userID any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByID", reflect.TypeOf((*MockUserRepository)(nil).GetUserByID), c, userID)
 }
 
+// GetUserByUsername mocks base method.
+func (m *MockUserRepository) GetUserByUsername(c context.Context, username string) (*entity.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserByUsername", c, username)
+	ret0, _ := ret[0].(*entity.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserByUsername indicates an expected call of GetUserByUsername.
+func (mr *MockUserRepositoryMockRecorder) GetUserByUsername(c, username any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByUsername", reflect.TypeOf((*MockUserRepository)(nil).GetUserByUsername), c, username)
+}
+
 // UpdateUser mocks base method.
 func (m *MockUserRepository) UpdateUser(c context.Context, user *entity.User) (*entity.User, error) {
 	m.ctrl.T.Helper()

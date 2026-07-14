@@ -34,6 +34,9 @@ func ErrorHandler(logger *zap.Logger) gin.HandlerFunc {
 		case errors.Is(err, entity.ErrNotFound):
 			status = http.StatusNotFound
 			message = err.Error()
+		case errors.Is(err, entity.ErrUnauthorized):
+			status = http.StatusUnauthorized
+			message = err.Error()
 		case errors.Is(err, entity.ErrServiceUnavailable):
 			status = http.StatusServiceUnavailable
 			message = err.Error()

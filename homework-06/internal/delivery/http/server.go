@@ -57,6 +57,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 
 	userHandler := handlers.NewUserHandler(cfg.Logger, cfg.UserRepository)
 	authHandler := handlers.NewAuthHandler(cfg.Logger, cfg.UserRepository)
+	profileHandler := handlers.NewProfileHandler(cfg.Logger, cfg.UserRepository)
 
 	r.POST("/register", authHandler.Register)
 	r.POST("/login", authHandler.Login)
@@ -64,6 +65,9 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 
 	api := r.Group("/api/v1")
 	{
+		api.GET("/profile", profileHandler.Get)
+		api.PUT("/profile", profileHandler.Update)
+
 		usersGroup := api.Group("/users")
 		{
 			usersGroup.POST("", userHandler.Create)

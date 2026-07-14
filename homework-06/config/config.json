@@ -1,0 +1,20 @@
+{
+  "app": {
+    "name": "otus-microservices-homework-06",
+    "env": "development"
+  },
+  "http": {
+    "addr": "0.0.0.0:8000",
+    "readTimeout": "5s",
+    "writeTimeout": "5s",
+    "idleTimeout": "60s",
+    "shutdownTimeout": "15s"
+  },
+  "db": {
+    "host": "localhost",
+    "port": 5433,
+    "user": "<user>",
+    "password": "<password>",
+    "dbName": "user_service"
+  }
+}

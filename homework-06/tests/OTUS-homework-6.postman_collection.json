@@ -70,7 +70,14 @@
           }
         },
         "url": {
-          "raw": "http://{{baseUrl}}/register"
+          "raw": "http://{{baseUrl}}/register",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "register"
+          ]
         }
       },
       "response": []
@@ -94,7 +101,16 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://{{baseUrl}}/api/v1/profile"
+          "raw": "http://{{baseUrl}}/api/v1/profile",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "profile"
+          ]
         }
       },
       "response": []
@@ -132,7 +148,16 @@
           }
         },
         "url": {
-          "raw": "http://{{baseUrl}}/api/v1/profile"
+          "raw": "http://{{baseUrl}}/api/v1/profile",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "profile"
+          ]
         }
       },
       "response": []
@@ -178,7 +203,14 @@
           }
         },
         "url": {
-          "raw": "http://{{baseUrl}}/login"
+          "raw": "http://{{baseUrl}}/login",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "login"
+          ]
         }
       },
       "response": []
@@ -226,7 +258,16 @@
           }
         },
         "url": {
-          "raw": "http://{{baseUrl}}/api/v1/profile"
+          "raw": "http://{{baseUrl}}/api/v1/profile",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "profile"
+          ]
         }
       },
       "response": []
@@ -260,7 +301,16 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://{{baseUrl}}/api/v1/profile"
+          "raw": "http://{{baseUrl}}/api/v1/profile",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "profile"
+          ]
         }
       },
       "response": []
@@ -323,7 +373,14 @@
           }
         },
         "url": {
-          "raw": "http://{{baseUrl}}/register"
+          "raw": "http://{{baseUrl}}/register",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "register"
+          ]
         }
       },
       "response": []
@@ -365,7 +422,14 @@
           }
         },
         "url": {
-          "raw": "http://{{baseUrl}}/login"
+          "raw": "http://{{baseUrl}}/login",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "login"
+          ]
         }
       },
       "response": []
@@ -389,7 +453,17 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://{{baseUrl}}/api/v1/users/{{user1Id}}"
+          "raw": "http://{{baseUrl}}/api/v1/users/{{user1Id}}",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "users",
+            "{{user1Id}}"
+          ]
         }
       },
       "response": []
@@ -427,7 +501,17 @@
           }
         },
         "url": {
-          "raw": "http://{{baseUrl}}/api/v1/users/{{user1Id}}"
+          "raw": "http://{{baseUrl}}/api/v1/users/{{user1Id}}",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "users",
+            "{{user1Id}}"
+          ]
         }
       },
       "response": []
@@ -435,22 +519,14 @@
   ],
   "event": [
     {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "console.log(`[request] ${pm.request.method} ${pm.request.url.toString()}`);",
-          "if (pm.request.body && pm.request.body.raw) {",
-          "    console.log(`[request body] ${pm.variables.replaceIn(pm.request.body.raw)}`);",
-          "}"
-        ]
-      }
-    },
-    {
       "listen": "test",
       "script": {
         "type": "text/javascript",
         "exec": [
+          "console.log(`[request] ${pm.request.method} ${pm.variables.replaceIn(pm.request.url.toString())}`);",
+          "if (pm.request.body && pm.request.body.raw) {",
+          "    console.log(`[request body] ${pm.variables.replaceIn(pm.request.body.raw)}`);",
+          "}",
           "console.log(`[response] ${pm.response.code} ${pm.response.status}`);",
           "console.log(`[response body] ${pm.response.text()}`);"
         ]

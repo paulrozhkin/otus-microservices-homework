@@ -1,0 +1,32 @@
+flowchart LR
+    client["Client / Newman"]
+
+    subgraph ns["Kubernetes namespace: users-service"]
+        subgraph nginx["nginx-ingress-controller"]
+            public["users-public-ingress<br/>/register<br/>/login<br/>/logout<br/>/auth<br/>/health<br/>/swagger"]
+            protected["users-protected-ingress<br/>/api/v1/*<br/>nginx auth-url -> /auth"]
+        end
+
+        subgraph service["users-service<br/>Go server<br/>replicaCount: 2"]
+            auth["Auth API<br/>/register<br/>/login<br/>/logout<br/>/auth"]
+            profile["Profile API<br/>GET /api/v1/profile<br/>PUT /api/v1/profile"]
+            users["Users API<br/>role-aware CRUD"]
+        end
+
+        db[("PostgreSQL<br/>users<br/>sessions")]
+    end
+
+    client -->|"register / login / logout"| public
+    public -->|"direct HTTP"| auth
+    auth -->|"user create, validate,<br/>store sessions"| db
+
+    client -->|"/api/v1/profile<br/>/api/v1/users"| protected
+    protected -->|"GET /auth<br/>with session_id cookie"| auth
+    auth -->|"200 + X-Auth-* headers"| protected
+    protected -->|"forward original request<br/>with X-Auth-* headers"| profile
+    protected -->|"forward original request<br/>with X-Auth-* headers"| users
+
+    profile -->|"read/update current user"| db
+    users -->|"admin CRUD or user self-access"| db
+
+    protected -.->|"if /auth returns 401,<br/>nginx reject request with 401"| client

@@ -2,6 +2,13 @@
 
 RESTful CRUD with Helm для домашней работы на OTUS
 
+## Architecture
+
+![Architecture](./docs/architecture.svg)
+
+Mermaid source: [architecture.mmd](./docs/architecture.mmd)
+
+
 ## Сборка и публикация
 1. `docker build --platform linux/amd64 -t paulrozhkin/otus-microservices-homework-06:latest .` 
 2. `docker push paulrozhkin/otus-microservices-homework-06:latest`

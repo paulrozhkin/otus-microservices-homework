@@ -316,7 +316,42 @@
       "response": []
     },
     {
-      "name": "07 Register user 2",
+      "name": "07 Logout user 1",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('logout response is ok', function () {",
+              "    pm.expect(pm.response.json().status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "http://{{baseUrl}}/logout",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "logout"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "08 Register user 2",
       "event": [
         {
           "listen": "prerequest",
@@ -386,7 +421,7 @@
       "response": []
     },
     {
-      "name": "08 Login user 2",
+      "name": "09 Login user 2",
       "event": [
         {
           "listen": "test",
@@ -435,7 +470,7 @@
       "response": []
     },
     {
-      "name": "09 User 2 cannot read user 1 by id",
+      "name": "10 User 2 cannot read user 1 by id",
       "event": [
         {
           "listen": "test",
@@ -469,7 +504,7 @@
       "response": []
     },
     {
-      "name": "10 User 2 cannot update user 1 by id",
+      "name": "11 User 2 cannot update user 1 by id",
       "event": [
         {
           "listen": "test",

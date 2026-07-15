@@ -112,6 +112,19 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+func (h *AuthHandler) Logout(c *gin.Context) {
+	sessionID, err := c.Cookie(sessionCookieName)
+	if err == nil {
+		if err = h.userRepository.DeleteSession(c, sessionID); err != nil {
+			c.Error(err)
+			return
+		}
+	}
+
+	c.SetCookie(sessionCookieName, "", -1, "/", "", false, true)
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 func (h *AuthHandler) Auth(c *gin.Context) {
 	sessionID, err := c.Cookie(sessionCookieName)
 	if err != nil {

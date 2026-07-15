@@ -71,6 +71,20 @@ func (mr *MockUserRepositoryMockRecorder) CreateUser(c, user any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockUserRepository)(nil).CreateUser), c, user)
 }
 
+// DeleteSession mocks base method.
+func (m *MockUserRepository) DeleteSession(c context.Context, sessionID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteSession", c, sessionID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteSession indicates an expected call of DeleteSession.
+func (mr *MockUserRepositoryMockRecorder) DeleteSession(c, sessionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSession", reflect.TypeOf((*MockUserRepository)(nil).DeleteSession), c, sessionID)
+}
+
 // DeleteUser mocks base method.
 func (m *MockUserRepository) DeleteUser(c context.Context, userID int64) error {
 	m.ctrl.T.Helper()

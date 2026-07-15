@@ -94,6 +94,30 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         default:
           $ref: '#/components/responses/UnexpectedError'
+  /logout:
+    post:
+      tags:
+        - auth
+      summary: Logout
+      description: Deletes the current server-side session if the session_id cookie is present and expires the cookie.
+      operationId: logout
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Logout succeeded
+          headers:
+            Set-Cookie:
+              description: Expired session cookie
+              schema:
+                type: string
+                example: session_id=; Path=/; Max-Age=0; HttpOnly
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
   /auth:
     get:
       tags:

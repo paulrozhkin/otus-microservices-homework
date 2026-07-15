@@ -43,6 +43,7 @@ type UserRepository interface {
 	DeleteUser(c context.Context, userID int64) error
 	CreateSession(c context.Context, sessionID string, userID int64, expiresAt time.Time) error
 	GetUserBySessionID(c context.Context, sessionID string) (*entity.User, error)
+	DeleteSession(c context.Context, sessionID string) error
 }
 
 type UserRepositoryImpl struct {
@@ -173,6 +174,11 @@ func (u *UserRepositoryImpl) GetUserBySessionID(c context.Context, sessionID str
 	}
 
 	return u.GetUserByID(c, session.UserID)
+}
+
+func (u *UserRepositoryImpl) DeleteSession(c context.Context, sessionID string) error {
+	result := u.db.WithContext(c).Delete(&Session{}, "id = ?", sessionID)
+	return result.Error
 }
 
 func (u *UserRepositoryImpl) getUserDaoById(c context.Context, userID int64) (*User, error) {

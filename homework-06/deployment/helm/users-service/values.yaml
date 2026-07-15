@@ -84,6 +84,8 @@ ingress:
         pathType: Exact
       - path: /login
         pathType: Exact
+      - path: /logout
+        pathType: Exact
       - path: /auth
         pathType: Exact
       - path: /health

@@ -62,7 +62,7 @@ func runMigrations(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	if err = db.AutoMigrate(&repositories.User{}); err != nil {
+	if err = db.AutoMigrate(&repositories.User{}, &repositories.Session{}); err != nil {
 		return err
 	}
 	return nil

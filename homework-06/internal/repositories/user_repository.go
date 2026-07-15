@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-06/internal/entity"
@@ -25,6 +26,14 @@ type User struct {
 	Roles        string `gorm:"not null;default:'user'"`
 }
 
+type Session struct {
+	ID        string `gorm:"primaryKey;size:36"`
+	UserID    int64  `gorm:"not null;index"`
+	ExpiresAt time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type UserRepository interface {
 	GetAllUsers(c context.Context) ([]*entity.User, error)
 	GetUserByID(c context.Context, userID int64) (*entity.User, error)
@@ -32,6 +41,8 @@ type UserRepository interface {
 	CreateUser(c context.Context, user *entity.User) (*entity.User, error)
 	UpdateUser(c context.Context, user *entity.User) (*entity.User, error)
 	DeleteUser(c context.Context, userID int64) error
+	CreateSession(c context.Context, sessionID string, userID int64, expiresAt time.Time) error
+	GetUserBySessionID(c context.Context, sessionID string) (*entity.User, error)
 }
 
 type UserRepositoryImpl struct {
@@ -138,6 +149,30 @@ func (u *UserRepositoryImpl) DeleteUser(c context.Context, userID int64) error {
 		return result.Error
 	}
 	return nil
+}
+
+func (u *UserRepositoryImpl) CreateSession(c context.Context, sessionID string, userID int64, expiresAt time.Time) error {
+	session := &Session{
+		ID:        sessionID,
+		UserID:    userID,
+		ExpiresAt: expiresAt,
+	}
+	result := u.db.WithContext(c).Create(session)
+	return result.Error
+}
+
+func (u *UserRepositoryImpl) GetUserBySessionID(c context.Context, sessionID string) (*entity.User, error) {
+	session := &Session{}
+	result := u.db.WithContext(c).First(session, "id = ? AND expires_at > ?", sessionID, time.Now())
+	if result.Error != nil {
+		if isNotFoundViolation(result.Error) {
+			return nil, fmt.Errorf("%w: session %q", entity.ErrUnauthorized, sessionID)
+		}
+
+		return nil, result.Error
+	}
+
+	return u.GetUserByID(c, session.UserID)
 }
 
 func (u *UserRepositoryImpl) getUserDaoById(c context.Context, userID int64) (*User, error) {

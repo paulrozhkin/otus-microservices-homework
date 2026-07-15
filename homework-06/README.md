@@ -7,6 +7,12 @@ RESTful CRUD with Helm для домашней работы на OTUS
 2. `docker push paulrozhkin/otus-microservices-homework-06:latest`
 3. `docker run -p 8000:8000 paulrozhkin/otus-microservices-homework-06:latest`
 
+## Minikube 
+1. Запуска minikube с заданными ресурсами:
+```
+minikube start --cpus=6 --memory=8192
+```
+
 ## Работа с helm
 1. Переходим в helm дирректорию:
 ```aiignore

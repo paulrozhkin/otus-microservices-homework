@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	entity "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-06/internal/entity"
 	gomock "go.uber.org/mock/gomock"
@@ -39,6 +40,20 @@ func NewMockUserRepository(ctrl *gomock.Controller) *MockUserRepository {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockUserRepository) EXPECT() *MockUserRepositoryMockRecorder {
 	return m.recorder
+}
+
+// CreateSession mocks base method.
+func (m *MockUserRepository) CreateSession(c context.Context, sessionID string, userID int64, expiresAt time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSession", c, sessionID, userID, expiresAt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateSession indicates an expected call of CreateSession.
+func (mr *MockUserRepositoryMockRecorder) CreateSession(c, sessionID, userID, expiresAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSession", reflect.TypeOf((*MockUserRepository)(nil).CreateSession), c, sessionID, userID, expiresAt)
 }
 
 // CreateUser mocks base method.
@@ -98,6 +113,21 @@ func (m *MockUserRepository) GetUserByID(c context.Context, userID int64) (*enti
 func (mr *MockUserRepositoryMockRecorder) GetUserByID(c, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByID", reflect.TypeOf((*MockUserRepository)(nil).GetUserByID), c, userID)
+}
+
+// GetUserBySessionID mocks base method.
+func (m *MockUserRepository) GetUserBySessionID(c context.Context, sessionID string) (*entity.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserBySessionID", c, sessionID)
+	ret0, _ := ret[0].(*entity.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserBySessionID indicates an expected call of GetUserBySessionID.
+func (mr *MockUserRepositoryMockRecorder) GetUserBySessionID(c, sessionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserBySessionID", reflect.TypeOf((*MockUserRepository)(nil).GetUserBySessionID), c, sessionID)
 }
 
 // GetUserByUsername mocks base method.

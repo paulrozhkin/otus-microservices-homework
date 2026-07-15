@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,8 +20,6 @@ const sessionCookieName = "session_id"
 type AuthHandler struct {
 	userRepository repositories.UserRepository
 	logger         *zap.Logger
-	sessions       map[string]*entity.User
-	sessionsMu     sync.RWMutex
 }
 
 type RegisterRequest struct {
@@ -44,7 +41,6 @@ func NewAuthHandler(logger *zap.Logger, userRepository repositories.UserReposito
 	return &AuthHandler{
 		userRepository: userRepository,
 		logger:         logger,
-		sessions:       make(map[string]*entity.User),
 	}
 }
 
@@ -106,11 +102,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	sessionID := uuid.NewString()
-	h.sessionsMu.Lock()
-	h.sessions[sessionID] = user
-	h.sessionsMu.Unlock()
+	sessionTTL := 24 * time.Hour
+	if err = h.userRepository.CreateSession(c, sessionID, user.Id, time.Now().Add(sessionTTL)); err != nil {
+		c.Error(err)
+		return
+	}
 
-	c.SetCookie(sessionCookieName, sessionID, int((24 * time.Hour).Seconds()), "/", "", false, true)
+	c.SetCookie(sessionCookieName, sessionID, int(sessionTTL.Seconds()), "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
@@ -121,11 +119,9 @@ func (h *AuthHandler) Auth(c *gin.Context) {
 		return
 	}
 
-	h.sessionsMu.RLock()
-	user, ok := h.sessions[sessionID]
-	h.sessionsMu.RUnlock()
-	if !ok {
-		c.Error(entity.ErrUnauthorized)
+	user, err := h.userRepository.GetUserBySessionID(c, sessionID)
+	if err != nil {
+		c.Error(err)
 		return
 	}
 

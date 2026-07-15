@@ -1,44 +1,237 @@
 openapi: 3.0.0
 info:
-  description: |
-    This is API for user CRUD
-  version: "1.0.0"
   title: User Service
+  version: "1.0.0"
+  description: |
+    User service API with registration, cookie-based authentication,
+    Traefik forwardAuth endpoint, protected profile API, and role-aware users API.
 servers:
   - description: Local Server
-    url: http://localhost:8000/api/v1/
+    url: http://localhost:8000
+  - description: Kubernetes ingress
+    url: http://arch.homework
 tags:
+  - name: auth
+    description: Registration, login, and forwardAuth endpoints
+  - name: profile
+    description: Operations with current user profile
   - name: user
-    description: Operations about user
+    description: Role-aware operations about users
 paths:
-  /users:
+  /register:
+    post:
+      tags:
+        - auth
+      summary: Register user
+      description: Creates a new user with a bcrypt password hash and the user role by default.
+      operationId: register
+      requestBody:
+        description: Registration data
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              sample-register:
+                summary: Example
+                value:
+                  login: john
+                  password: pass1
+                  firstName: John
+                  lastName: Doe
+                  email: john@example.com
+                  phone: '+71002003040'
+      responses:
+        '201':
+          description: Registered user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+  /login:
+    post:
+      tags:
+        - auth
+      summary: Login
+      description: Verifies login and password, creates a server-side session, and sets the HttpOnly session_id cookie.
+      operationId: login
+      requestBody:
+        description: Login credentials
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              sample-login:
+                summary: Example
+                value:
+                  login: john
+                  password: pass1
+      responses:
+        '200':
+          description: Login succeeded
+          headers:
+            Set-Cookie:
+              description: HttpOnly session cookie
+              schema:
+                type: string
+                example: session_id=2b558fc5-d05e-495d-ac3a-3d164246d277; Path=/; Max-Age=86400; HttpOnly
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+  /auth:
+    get:
+      tags:
+        - auth
+      summary: Check session for Traefik forwardAuth
+      description: |
+        Validates the session_id cookie. On success returns auth metadata in X-Auth-* response headers
+        so Traefik can forward them to protected routes.
+      operationId: auth
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Session is valid
+          headers:
+            X-Auth-UserId:
+              description: Current user id
+              schema:
+                type: string
+                example: "42"
+            X-Auth-User:
+              description: Current user login
+              schema:
+                type: string
+                example: john
+            X-Auth-Email:
+              description: Current user email
+              schema:
+                type: string
+                example: john@example.com
+            X-Auth-Roles:
+              description: Comma-separated current user roles
+              schema:
+                type: string
+                example: user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+  /api/v1/profile:
+    get:
+      tags:
+        - profile
+      summary: Get current profile
+      description: Returns the profile for the current authenticated user from the X-Auth-UserId header.
+      operationId: getProfile
+      security:
+        - ForwardAuthUserId: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    put:
+      tags:
+        - profile
+      summary: Update current profile
+      description: Updates profile fields for the current authenticated user from the X-Auth-UserId header.
+      operationId: updateProfile
+      security:
+        - ForwardAuthUserId: []
+      requestBody:
+        description: Profile data
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+            examples:
+              sample-profile:
+                summary: Example
+                value:
+                  firstName: Julie
+                  lastName: Doe
+                  email: julie@example.com
+                  phone: '+71004242424'
+      responses:
+        '200':
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+  /api/v1/users:
     get:
       tags:
         - user
       summary: Get all users
-      description: This used for get all users of system
+      description: Available only to users with the admin role.
       operationId: getUsers
+      security:
+        - ForwardAuthUserId: []
+          ForwardAuthRoles: []
       responses:
         '200':
-          description: user response
+          description: Users response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserArray'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
     post:
       tags:
         - user
       summary: Create user
-      description: This can only be done by the logged in user.
+      description: Available only to users with the admin role.
       operationId: createUser
-      responses:
-        default:
-          description: successful operation
+      security:
+        - ForwardAuthUserId: []
+          ForwardAuthRoles: []
       requestBody:
+        description: Created user object
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/UserCreateRequest'
             examples:
               sample-user:
                 summary: Example
@@ -48,9 +241,24 @@ paths:
                   lastName: Doe
                   email: bestjohn@doe.com
                   phone: '+71002003040'
-        description: Created user object
-        required: true
-  /users/{userId}:
+      responses:
+        '201':
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+  /api/v1/users/{userId}:
     parameters:
       - name: userId
         in: path
@@ -62,66 +270,222 @@ paths:
     get:
       tags:
         - user
-      description: Returns a user based on a single ID, if the user does not have access to the user
-      operationId: find user by id
+      summary: Get user by id
+      description: Available to admins. Users with the user role can access only their own id.
+      operationId: getUserById
+      security:
+        - ForwardAuthUserId: []
+          ForwardAuthRoles: []
       responses:
         '200':
-          description: user response
+          description: User response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    delete:
-      tags:
-        - user
-      description: deletes a single user based on the ID supplied
-      operationId: deleteUser
-      responses:
-        '204':
-          description: user deleted
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/UnexpectedError'
     put:
       tags:
         - user
-      description: Update user with User ID supplied
+      summary: Update user by id
+      description: Available to admins. Users with the user role can update only their own id.
       operationId: updateUser
+      security:
+        - ForwardAuthUserId: []
+          ForwardAuthRoles: []
       requestBody:
+        description: Updated user object
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/UserCreateRequest'
             examples:
               sample-user:
                 summary: Example
                 value:
+                  username: jongdoe
                   firstName: Julie
                   lastName: Doe
                   email: bestjohn@doe.com
                   phone: '+71004242424'
-
       responses:
         '200':
-          description: user updated
-        default:
-          description: unexpected error
+          description: Updated user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    delete:
+      tags:
+        - user
+      summary: Delete user by id
+      description: Available only to users with the admin role.
+      operationId: deleteUser
+      security:
+        - ForwardAuthUserId: []
+          ForwardAuthRoles: []
+      responses:
+        '200':
+          description: User deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
 components:
+  securitySchemes:
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+    ForwardAuthUserId:
+      type: apiKey
+      in: header
+      name: X-Auth-UserId
+      description: User id forwarded by Traefik after /auth succeeds.
+    ForwardAuthRoles:
+      type: apiKey
+      in: header
+      name: X-Auth-Roles
+      description: Comma-separated roles forwarded by Traefik after /auth succeeds.
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Authenticated user does not have access to this operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnexpectedError:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
   schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - login
+        - password
+        - email
+      properties:
+        login:
+          type: string
+          maxLength: 256
+        password:
+          type: string
+          format: password
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+          default:
+            - user
+    LoginRequest:
+      type: object
+      required:
+        - login
+        - password
+      properties:
+        login:
+          type: string
+        password:
+          type: string
+          format: password
+    ProfileUpdateRequest:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - email
+        - phone
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+    UserCreateRequest:
+      type: object
+      required:
+        - username
+        - firstName
+        - lastName
+        - email
+        - phone
+      properties:
+        username:
+          type: string
+          maxLength: 256
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
     User:
       type: object
       properties:
@@ -140,7 +504,10 @@ components:
           format: email
         phone:
           type: string
-          format: phone
+        roles:
+          type: array
+          items:
+            type: string
     Error:
       type: object
       required:
@@ -152,6 +519,14 @@ components:
           format: int32
         message:
           type: string
+    StatusResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: ok
     UserArray:
       type: array
       items:

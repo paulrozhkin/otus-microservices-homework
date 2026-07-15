@@ -1,11 +1,14 @@
 {{- if .Values.ingress.enabled -}}
+{{- $root := . -}}
+{{- $authURL := printf "http://%s.%s.svc.cluster.local:%v/auth" .Values.names.service .Release.Namespace .Values.service.port -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Values.names.ingress }}
+  name: {{ .Values.names.publicIngress | default (printf "%s-public" .Values.names.ingress) }}
   labels:
     {{- include "users-service.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+  {{- $publicAnnotations := merge (dict) .Values.ingress.annotations .Values.ingress.public.annotations }}
+  {{- with $publicAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -22,14 +25,51 @@ spec:
     - host: {{ .host | quote }}
       http:
         paths:
-          {{- range .paths }}
+          {{- range $root.Values.ingress.public.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ $.Values.names.service }}
+                name: {{ $root.Values.names.service }}
                 port:
-                  number: {{ $.Values.service.port }}
+                  number: {{ $root.Values.service.port }}
+          {{- end }}
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.names.protectedIngress | default (printf "%s-protected" .Values.names.ingress) }}
+  labels:
+    {{- include "users-service.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: {{ $authURL | quote }}
+    nginx.ingress.kubernetes.io/auth-response-headers: {{ .Values.ingress.protected.authResponseHeaders | quote }}
+    {{- $protectedAnnotations := merge (dict) .Values.ingress.annotations .Values.ingress.protected.annotations }}
+    {{- with $protectedAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range $root.Values.ingress.protected.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $root.Values.names.service }}
+                port:
+                  number: {{ $root.Values.service.port }}
           {{- end }}
     {{- end }}
 {{- end }}

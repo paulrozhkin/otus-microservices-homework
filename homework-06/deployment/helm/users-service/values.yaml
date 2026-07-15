@@ -8,6 +8,8 @@ names:
   configMap: users-config-map
   secret: users-secret
   ingress: users-ingress
+  publicIngress: users-public-ingress
+  protectedIngress: users-protected-ingress
   postgres: users-psql
   postgresService: users-db-service
   migrationJob: users-db-migration-job
@@ -74,13 +76,30 @@ grafanaAlerting:
 ingress:
   enabled: true
   className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+  annotations: {}
+  public:
+    annotations: {}
+    paths:
+      - path: /register
+        pathType: Exact
+      - path: /login
+        pathType: Exact
+      - path: /auth
+        pathType: Exact
+      - path: /health
+        pathType: Exact
+      - path: /swagger
+        pathType: Exact
+      - path: /swagger.yaml
+        pathType: Exact
+  protected:
+    annotations: {}
+    authResponseHeaders: "X-Auth-UserId,X-Auth-User,X-Auth-Email,X-Auth-Roles"
+    paths:
+      - path: /api/v1
+        pathType: Prefix
   hosts:
     - host: arch.homework
-      paths:
-        - path: /
-          pathType: Prefix
   tls: []
 
 ingressNginx:

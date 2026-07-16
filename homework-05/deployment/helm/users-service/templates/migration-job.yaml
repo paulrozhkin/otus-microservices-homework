@@ -1,0 +1,35 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.names.migrationJob }}
+  labels:
+    {{- include "users-service.labels" . | nindent 4 }}
+  {{- if .Values.migration.hook.enabled }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  {{- end }}
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "users-service.selectorLabels" . | nindent 8 }}
+        app: {{ .Values.names.migrationJob }}
+    spec:
+      containers:
+        - name: {{ .Values.names.migrationJob }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["migrate"]
+          envFrom:
+            - secretRef:
+                name: {{ .Values.names.secret }}
+              prefix: OTUS_USER_SERVICE_
+            - configMapRef:
+                name: {{ .Values.names.configMap }}
+              prefix: OTUS_USER_SERVICE_
+      restartPolicy: Never
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+{{- end }}

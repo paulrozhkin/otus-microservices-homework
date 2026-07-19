@@ -1,0 +1,5 @@
+{
+  "app": { "name": "billing-service", "env": "development" },
+  "http": { "addr": "0.0.0.0:8001", "readTimeout": "5s", "writeTimeout": "10s", "idleTimeout": "60s", "shutdownTimeout": "15s" },
+  "db": { "host": "localhost", "port": 5434, "user": "billing_service", "password": "billing_service", "dbName": "billing_service", "sslmode": "disable", "timeZone": "UTC" }
+}

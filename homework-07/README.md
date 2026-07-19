@@ -53,9 +53,25 @@ Mermaid source: [architecture.mmd](./docs/architecture.mmd)
 
 
 ## Сборка и публикация
-1. `docker build --platform linux/amd64 -t paulrozhkin/otus-microservices-homework-06:latest .` 
-2. `docker push paulrozhkin/otus-microservices-homework-06:latest`
-3. `docker run -p 8000:8000 paulrozhkin/otus-microservices-homework-06:latest`
+Каждый сервис со своим Go module and Dockerfile
+
+Test:
+```powershell
+go test ./services/user-service/... ./services/billing-service/... ./internal/platform/...
+```
+
+Build:
+```powershell
+docker build --platform linux/amd64 -f services/user-service/Dockerfile -t paulrozhkin/otus-microservices-homework-07-user-service:latest .
+docker build --platform linux/amd64 -f services/billing-service/Dockerfile -t paulrozhkin/otus-microservices-homework-07-billing-service:latest .
+```
+
+Push:
+```powershell
+docker push paulrozhkin/otus-microservices-homework-07-user-service:latest
+docker push paulrozhkin/otus-microservices-homework-07-billing-service:latest
+```
+
 
 ## Minikube 
 1. Запуска minikube с заданными ресурсами:

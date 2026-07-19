@@ -1,5 +1,5 @@
 services:
-  postgres:
+  user-postgres:
     image: postgres:16
     ports:
       - "5433:5432"
@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: user_service
       POSTGRES_PASSWORD: user_service
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - user-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user_service -d user_service"]
       interval: 5s
@@ -16,29 +16,93 @@ services:
       retries: 10
     networks:
       - monitoring
+      - backend
 
-  migrate:
+  user-migrate:
     build:
       context: ../..
-      dockerfile: Dockerfile
+      dockerfile: services/user-service/Dockerfile
     command: ["migrate"]
     environment:
-      OTUS_USER_SERVICE_DB_HOST: postgres
+      OTUS_USER_SERVICE_DB_HOST: user-postgres
       OTUS_USER_SERVICE_DB_PORT: 5432
       OTUS_USER_SERVICE_DB_USER: user_service
       OTUS_USER_SERVICE_DB_PASSWORD: user_service
       OTUS_USER_SERVICE_DB_DBNAME: user_service
       OTUS_USER_SERVICE_DB_SSLMODE: disable
     depends_on:
-      postgres:
+      user-postgres:
         condition: service_healthy
     networks:
-      - monitoring
+      - backend
 
-  users-service:
+  billing-postgres:
+    image: postgres:16
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: billing_service
+      POSTGRES_USER: billing_service
+      POSTGRES_PASSWORD: billing_service
+    volumes:
+      - billing-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing_service -d billing_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  billing-migrate:
     build:
       context: ../..
-      dockerfile: Dockerfile
+      dockerfile: services/billing-service/Dockerfile
+    command: ["migrate"]
+    environment:
+      OTUS_BILLING_SERVICE_DB_HOST: billing-postgres
+      OTUS_BILLING_SERVICE_DB_PORT: 5432
+      OTUS_BILLING_SERVICE_DB_USER: billing_service
+      OTUS_BILLING_SERVICE_DB_PASSWORD: billing_service
+      OTUS_BILLING_SERVICE_DB_DBNAME: billing_service
+      OTUS_BILLING_SERVICE_DB_SSLMODE: disable
+    depends_on:
+      billing-postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  billing-service:
+    build:
+      context: ../..
+      dockerfile: services/billing-service/Dockerfile
+    container_name: billing-service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      OTUS_BILLING_SERVICE_APP_NAME: billing-service
+      OTUS_BILLING_SERVICE_APP_ENV: development
+      OTUS_BILLING_SERVICE_HTTP_ADDR: 0.0.0.0:8001
+      OTUS_BILLING_SERVICE_DB_HOST: billing-postgres
+      OTUS_BILLING_SERVICE_DB_PORT: 5432
+      OTUS_BILLING_SERVICE_DB_USER: billing_service
+      OTUS_BILLING_SERVICE_DB_PASSWORD: billing_service
+      OTUS_BILLING_SERVICE_DB_DBNAME: billing_service
+      OTUS_BILLING_SERVICE_DB_SSLMODE: disable
+    depends_on:
+      billing-postgres:
+        condition: service_healthy
+      billing-migrate:
+        condition: service_completed_successfully
+    networks:
+      - monitoring
+      - backend
+
+  user-service:
+    build:
+      context: ../..
+      dockerfile: services/user-service/Dockerfile
     container_name: users-service
     restart: unless-stopped
     ports:
@@ -47,19 +111,23 @@ services:
       OTUS_USER_SERVICE_APP_NAME: users-service
       OTUS_USER_SERVICE_APP_ENV: development
       OTUS_USER_SERVICE_HTTP_ADDR: 0.0.0.0:8000
-      OTUS_USER_SERVICE_DB_HOST: postgres
+      OTUS_USER_SERVICE_DB_HOST: user-postgres
       OTUS_USER_SERVICE_DB_PORT: 5432
       OTUS_USER_SERVICE_DB_USER: user_service
       OTUS_USER_SERVICE_DB_PASSWORD: user_service
       OTUS_USER_SERVICE_DB_DBNAME: user_service
       OTUS_USER_SERVICE_DB_SSLMODE: disable
+      OTUS_USER_SERVICE_BILLING_BASE_URL: http://billing-service:8001
     depends_on:
-      postgres:
+      user-postgres:
         condition: service_healthy
-      migrate:
+      user-migrate:
         condition: service_completed_successfully
+      billing-service:
+        condition: service_started
     networks:
       - monitoring
+      - backend
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -114,8 +182,11 @@ services:
 networks:
   monitoring:
     driver: bridge
+  backend:
+    driver: bridge
 
 volumes:
-  postgres-data:
+  user-postgres-data:
+  billing-postgres-data:
   prometheus_data:
   grafana-data:

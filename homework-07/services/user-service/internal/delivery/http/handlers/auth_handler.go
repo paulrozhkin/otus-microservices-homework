@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/repositories"
 	"go.uber.org/zap"
@@ -104,8 +105,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, err := h.userRepository.GetUserByUsername(c, request.Login)
 	if err != nil {
-		if errors.Is(err, entity.ErrNotFound) {
-			c.Error(entity.ErrUnauthorized)
+		if errors.Is(err, apperror.ErrNotFound) {
+			c.Error(apperror.ErrUnauthorized)
 			return
 		}
 		c.Error(err)
@@ -113,7 +114,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(request.Password)); err != nil {
-		c.Error(entity.ErrUnauthorized)
+		c.Error(apperror.ErrUnauthorized)
 		return
 	}
 
@@ -144,7 +145,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) Auth(c *gin.Context) {
 	sessionID, err := c.Cookie(sessionCookieName)
 	if err != nil {
-		c.Error(entity.ErrUnauthorized)
+		c.Error(apperror.ErrUnauthorized)
 		return
 	}
 

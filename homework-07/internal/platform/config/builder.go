@@ -110,8 +110,8 @@ func (b *Builder[T]) setDefaults(v *viper.Viper) {
 	v.SetDefault("db.sslmode", "disable")
 	v.SetDefault("db.timeZone", "UTC")
 
-	if b.bindEnv != nil {
-		for key, value := range b.bindEnv {
+	if b.defaultValues != nil {
+		for key, value := range b.defaultValues {
 			v.SetDefault(key, value)
 		}
 	}
@@ -144,7 +144,7 @@ func (b *Builder[T]) bindEnvs(v *viper.Viper) error {
 
 	if b.bindEnv != nil {
 		for key, value := range b.bindEnv {
-			envs[key] = value
+			envs[key] = b.addPrefixToEnv(value)
 		}
 	}
 

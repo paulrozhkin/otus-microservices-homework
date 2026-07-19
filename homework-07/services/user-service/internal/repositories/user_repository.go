@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/entity"
 	"gorm.io/gorm"
 )
@@ -88,7 +89,7 @@ func (u *UserRepositoryImpl) GetUserByUsername(c context.Context, username strin
 	result := u.db.WithContext(c).Where("username = ?", username).First(userDao)
 	if result.Error != nil {
 		if isNotFoundViolation(result.Error) {
-			return nil, fmt.Errorf("%w: user with username %q", entity.ErrNotFound, username)
+			return nil, fmt.Errorf("%w: user with username %q", apperror.ErrNotFound, username)
 		}
 
 		return nil, result.Error
@@ -109,7 +110,7 @@ func (u *UserRepositoryImpl) CreateUser(c context.Context, user *entity.User) (*
 	result := u.db.WithContext(c).Create(userDao)
 	if result.Error != nil {
 		if isUniqueViolation(result.Error) {
-			return nil, fmt.Errorf("%w: user with username %q", entity.ErrAlreadyExists, user.Username)
+			return nil, fmt.Errorf("%w: user with username %q", apperror.ErrAlreadyExists, user.Username)
 		}
 
 		return nil, result.Error
@@ -137,7 +138,7 @@ func (u *UserRepositoryImpl) UpdateUser(c context.Context, user *entity.User) (*
 	result := u.db.WithContext(c).Save(userDao)
 	if result.Error != nil {
 		if isUniqueViolation(result.Error) {
-			return nil, fmt.Errorf("%w: user with username %q", entity.ErrAlreadyExists, user.Username)
+			return nil, fmt.Errorf("%w: user with username %q", apperror.ErrAlreadyExists, user.Username)
 		}
 		return nil, result.Error
 	}
@@ -167,7 +168,7 @@ func (u *UserRepositoryImpl) GetUserBySessionID(c context.Context, sessionID str
 	result := u.db.WithContext(c).First(session, "id = ? AND expires_at > ?", sessionID, time.Now())
 	if result.Error != nil {
 		if isNotFoundViolation(result.Error) {
-			return nil, fmt.Errorf("%w: session %q", entity.ErrUnauthorized, sessionID)
+			return nil, fmt.Errorf("%w: session %q", apperror.ErrUnauthorized, sessionID)
 		}
 
 		return nil, result.Error
@@ -186,7 +187,7 @@ func (u *UserRepositoryImpl) getUserDaoById(c context.Context, userID int64) (*U
 	result := u.db.WithContext(c).First(userDao, userID)
 	if result.Error != nil {
 		if isNotFoundViolation(result.Error) {
-			return nil, fmt.Errorf("%w: user with id %d", entity.ErrNotFound, userID)
+			return nil, fmt.Errorf("%w: user with id %d", apperror.ErrNotFound, userID)
 		}
 
 		return nil, result.Error

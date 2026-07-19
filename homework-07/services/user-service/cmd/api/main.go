@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	platfordb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
+	platformdb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/app"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/repositories"
@@ -59,7 +59,7 @@ func main() {
 }
 
 func runMigrations(cfg config.Config) error {
-	db, err := platfordb.OpenPostgres(cfg.DBConfig)
+	db, err := platformdb.OpenPostgres(cfg.DBConfig)
 	if err != nil {
 		return err
 	}

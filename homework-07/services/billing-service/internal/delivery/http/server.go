@@ -1,19 +1,12 @@
 package http
 
 import (
-	"context"
-	"net/http"
-	"time"
-
 	"github.com/gin-gonic/gin"
 	platformdb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
-	platformmiddleware "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/httpmiddleware"
+	platformhttp "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/httpserver"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/delivery/http/handlers"
-	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/delivery/http/middleware"
-	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/repositories"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -25,15 +18,9 @@ type RouterConfig struct {
 }
 
 func NewRouter(cfg RouterConfig) *gin.Engine {
-	if cfg.Config.IsProduction() {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	r := gin.New()
-	r.Use(platformmiddleware.Metrics(), platformmiddleware.RequestID(), gin.Recovery(), middleware.ErrorHandler(cfg.Logger))
+	r := platformhttp.NewRouter(cfg.Config.IsProduction(), cfg.Logger)
+	platformhttp.RegisterOperationalRoutes(r, cfg.HealthChecker)
 	h := handlers.NewBillingHandler(cfg.Repository)
-	r.GET("/livez", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
-	r.GET("/readyz", readiness(cfg.HealthChecker))
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	r.PUT("/internal/v1/accounts/:userId", h.CreateAccount)
 	r.POST("/internal/v1/payments", h.Pay)
 	r.POST("/internal/v1/payments/:operationId/refund", h.Refund)
@@ -42,16 +29,4 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	api.POST("/deposits", h.Deposit)
 	api.POST("/withdrawals", h.Withdraw)
 	return r
-}
-
-func readiness(checker platformdb.HealthChecker) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
-		defer cancel()
-		if checker == nil || checker.Ping(ctx) != nil {
-			c.Error(entity.ErrServiceUnavailable)
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	}
 }

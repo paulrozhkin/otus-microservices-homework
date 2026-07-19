@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/repositories"
 )
@@ -34,7 +35,7 @@ type PaymentRequest struct {
 func (h *BillingHandler) CreateAccount(c *gin.Context) {
 	userID, err := strconv.ParseInt(c.Param("userId"), 10, 64)
 	if err != nil || userID <= 0 {
-		c.Error(entity.ErrInvalidOperation).SetType(gin.ErrorTypeBind)
+		c.Error(apperror.ErrInvalidOperation).SetType(gin.ErrorTypeBind)
 		return
 	}
 	account, created, err := h.repository.CreateAccount(c, userID)
@@ -120,7 +121,7 @@ func (h *BillingHandler) Refund(c *gin.Context) {
 func authenticatedUserID(c *gin.Context) (int64, bool) {
 	userID, err := strconv.ParseInt(c.GetHeader(authUserIDHeader), 10, 64)
 	if err != nil || userID <= 0 {
-		c.Error(entity.ErrUnauthorized)
+		c.Error(apperror.ErrUnauthorized)
 		return 0, false
 	}
 	return userID, true

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	platformconfig "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/mocks"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ func TestRouterLiveness(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := NewRouter(RouterConfig{
-		Config: config.Config{App: config.AppConfig{Env: config.DevelopmentEnv}},
+		Config: config.Config{BaseConfig: platformconfig.BaseConfig{App: platformconfig.AppConfig{Env: platformconfig.DevelopmentEnv}}},
 		Logger: zap.NewNop(),
 	})
 
@@ -62,7 +63,7 @@ func TestRouterReadiness(t *testing.T) {
 				Return(tt.pingErr)
 
 			router := NewRouter(RouterConfig{
-				Config:        config.Config{App: config.AppConfig{Env: config.DevelopmentEnv}},
+				Config:        config.Config{BaseConfig: platformconfig.BaseConfig{App: platformconfig.AppConfig{Env: platformconfig.DevelopmentEnv}}},
 				Logger:        zap.NewNop(),
 				HealthChecker: healthChecker,
 			})
@@ -82,7 +83,7 @@ func TestRouterSwagger(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := NewRouter(RouterConfig{
-		Config: config.Config{App: config.AppConfig{Env: config.DevelopmentEnv}},
+		Config: config.Config{BaseConfig: platformconfig.BaseConfig{App: platformconfig.AppConfig{Env: platformconfig.DevelopmentEnv}}},
 		Logger: zap.NewNop(),
 	})
 

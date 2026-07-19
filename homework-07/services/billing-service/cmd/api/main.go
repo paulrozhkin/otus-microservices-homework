@@ -43,7 +43,7 @@ func main() {
 }
 
 func migrate(cfg config.Config) error {
-	db, err := platformdb.OpenPostgres(platformdb.PostgresConfig{Host: cfg.DB.Host, Port: cfg.DB.Port, User: cfg.DB.User.Value(), Password: cfg.DB.Password.Value(), DBName: cfg.DB.DBName, SSLMode: cfg.DB.SSLMode, TimeZone: cfg.DB.TimeZone})
+	db, err := platformdb.OpenPostgres(cfg.DBConfig)
 	if err != nil {
 		return err
 	}

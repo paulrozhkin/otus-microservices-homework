@@ -1,21 +1,15 @@
 package http
 
 import (
-	"context"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	platfordb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
-	platformmiddleware "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/httpmiddleware"
+	platformdb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
+	platformhttp "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/httpserver"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/docs"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/delivery/http/handlers"
-	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/delivery/http/middleware"
-	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/repositories"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"go.uber.org/zap"
 )
 
@@ -23,40 +17,16 @@ type RouterConfig struct {
 	Config         config.Config
 	Logger         *zap.Logger
 	UserRepository repositories.UserRepository
-	HealthChecker  platfordb.HealthChecker
+	HealthChecker  platformdb.HealthChecker
 	BillingClient  handlers.AccountProvisioner
 }
 
 func NewRouter(cfg RouterConfig) *gin.Engine {
-	if cfg.Config.IsProduction() {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	r := gin.New()
-	r.Use(platformmiddleware.Metrics())
-	r.Use(platformmiddleware.RequestID())
-
-	r.Use(gin.Recovery())
-	r.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		cfg.Logger.Info("http request",
-			zap.String("method", param.Method),
-			zap.String("path", param.Path),
-			zap.Int("status", param.StatusCode),
-			zap.Duration("latency", param.Latency),
-			zap.String("client_ip", param.ClientIP),
-			zap.String("request_id", param.Keys["request_id"].(string)),
-		)
-		return ""
-	}))
-	r.Use(middleware.ErrorHandler(cfg.Logger))
-
-	r.GET("/health", liveness) // Обратная совместимость с предыдущим ДЗ
-	r.GET("/livez", liveness)
-	r.GET("/readyz", readiness(cfg.HealthChecker))
+	r := platformhttp.NewRouter(cfg.Config.IsProduction(), cfg.Logger)
+	platformhttp.RegisterOperationalRoutes(r, cfg.HealthChecker)
+	r.GET("/health", platformhttp.Liveness)
 	r.GET("/swagger.yaml", swaggerYAML)
 	r.GET("/swagger", swaggerUI)
-	// Expose metrics endpoint (separate from application routes)
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	userHandler := handlers.NewUserHandler(cfg.Logger, cfg.UserRepository, cfg.BillingClient)
 	authHandler := handlers.NewAuthHandler(cfg.Logger, cfg.UserRepository, cfg.BillingClient)
@@ -68,39 +38,15 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	r.GET("/auth", authHandler.Auth)
 
 	api := r.Group("/api/v1")
-	{
-		api.GET("/profile", profileHandler.Get)
-		api.PUT("/profile", profileHandler.Update)
-
-		usersGroup := api.Group("/users")
-		{
-			usersGroup.POST("", userHandler.Create)
-			usersGroup.GET("/:id", userHandler.GetByID)
-			usersGroup.GET("", userHandler.GetAll)
-			usersGroup.PUT("/:id", userHandler.Update)
-			usersGroup.DELETE("/:id", userHandler.Delete)
-		}
-	}
-
+	api.GET("/profile", profileHandler.Get)
+	api.PUT("/profile", profileHandler.Update)
+	usersGroup := api.Group("/users")
+	usersGroup.POST("", userHandler.Create)
+	usersGroup.GET("/:id", userHandler.GetByID)
+	usersGroup.GET("", userHandler.GetAll)
+	usersGroup.PUT("/:id", userHandler.Update)
+	usersGroup.DELETE("/:id", userHandler.Delete)
 	return r
-}
-
-func liveness(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
-}
-
-func readiness(healthChecker platfordb.HealthChecker) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
-		defer cancel()
-
-		if err := healthChecker.Ping(ctx); err != nil {
-			c.Error(entity.ErrServiceUnavailable)
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	}
 }
 
 func swaggerYAML(c *gin.Context) {
@@ -121,10 +67,7 @@ func swaggerUI(c *gin.Context) {
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
   <script>
     window.onload = function() {
-      window.ui = SwaggerUIBundle({
-        url: "/swagger.yaml",
-        dom_id: "#swagger-ui"
-      });
+      window.ui = SwaggerUIBundle({url: "/swagger.yaml", dom_id: "#swagger-ui"});
     };
   </script>
 </body>

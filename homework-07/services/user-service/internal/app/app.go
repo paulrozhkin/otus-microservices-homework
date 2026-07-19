@@ -2,10 +2,11 @@ package app
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
-	platfordb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
+	platformdb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
+	platformhttp "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/httpserver"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/logging"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/clients"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/config"
 	httpserver "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/delivery/http"
@@ -20,14 +21,14 @@ type App struct {
 }
 
 func New(cfg config.Config) (*App, error) {
-	logger, err := newLogger(cfg)
+	logger, err := logging.New(cfg.IsProduction())
 	if err != nil {
 		return nil, err
 	}
 
 	logger.Info("Configuration initialized", zap.Any("config", cfg))
 
-	db, err := platfordb.OpenPostgres(cfg.DBConfig)
+	db, err := platformdb.OpenPostgres(cfg.DBConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -36,17 +37,10 @@ func New(cfg config.Config) (*App, error) {
 		Config:         cfg,
 		Logger:         logger,
 		UserRepository: repositories.NewUserRepository(db),
-		HealthChecker:  platfordb.NewPostgresHealthChecker(db),
-		BillingClient:  clients.NewBillingClient(cfg.Billing.UserServiceBaseURL, cfg.Billing.UserServiceResponseTimeout),
+		HealthChecker:  platformdb.NewPostgresHealthChecker(db),
+		BillingClient:  clients.NewBillingClient(cfg.Billing.BaseURL, cfg.Billing.ResponseTimeout),
 	})
-
-	server := &http.Server{
-		Addr:         cfg.Http.Addr,
-		Handler:      router,
-		ReadTimeout:  cfg.Http.ReadTimeout,
-		WriteTimeout: cfg.Http.WriteTimeout,
-		IdleTimeout:  cfg.Http.IdleTimeout,
-	}
+	server := platformhttp.New(cfg.Http, router)
 
 	return &App{
 		cfg:    cfg,
@@ -57,42 +51,5 @@ func New(cfg config.Config) (*App, error) {
 
 func (a *App) Run(ctx context.Context) error {
 	a.logger.Info("starting HTTP server", zap.String("addr", a.cfg.Http.Addr))
-
-	errCh := make(chan error, 1)
-
-	go func() {
-		if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-			return
-		}
-
-		errCh <- nil
-	}()
-
-	select {
-	case <-ctx.Done():
-		a.logger.Info("shutdown signal received")
-
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), a.cfg.Http.ShutdownTimeout)
-		defer cancel()
-
-		if err := a.server.Shutdown(shutdownCtx); err != nil {
-			a.logger.Error("failed to shutdown HTTP server", zap.Error(err))
-			return err
-		}
-
-		a.logger.Info("HTTP server stopped gracefully")
-		return nil
-
-	case err := <-errCh:
-		return err
-	}
-}
-
-func newLogger(cfg config.Config) (*zap.Logger, error) {
-	if cfg.IsProduction() {
-		return zap.NewProduction()
-	}
-
-	return zap.NewDevelopment()
+	return platformhttp.Run(ctx, a.server, a.cfg.Http.ShutdownTimeout, a.logger)
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/mocks"
 	"github.com/stretchr/testify/require"
@@ -234,7 +235,7 @@ func TestUserHandlerAuthorizationForUserRole(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, w.Code)
 		require.Len(t, c.Errors, 1)
-		require.ErrorIs(t, c.Errors.Last().Err, entity.ErrForbidden)
+		require.ErrorIs(t, c.Errors.Last().Err, apperror.ErrForbidden)
 	})
 
 	t.Run("allows get by own id", func(t *testing.T) {
@@ -273,7 +274,7 @@ func TestUserHandlerAuthorizationForUserRole(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, w.Code)
 		require.Len(t, c.Errors, 1)
-		require.ErrorIs(t, c.Errors.Last().Err, entity.ErrForbidden)
+		require.ErrorIs(t, c.Errors.Last().Err, apperror.ErrForbidden)
 	})
 }
 

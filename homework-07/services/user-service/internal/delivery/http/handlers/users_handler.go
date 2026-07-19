@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/repositories"
 	"go.uber.org/zap"
@@ -135,20 +136,20 @@ func (h *UserHandler) Delete(c *gin.Context) {
 
 func requireAdmin(c *gin.Context) bool {
 	if !hasAuthContext(c) {
-		c.Error(entity.ErrUnauthorized)
+		c.Error(apperror.ErrUnauthorized)
 		return false
 	}
 	if hasRole(c, "admin") {
 		return true
 	}
-	c.Error(entity.ErrForbidden)
+	c.Error(apperror.ErrForbidden)
 	return false
 }
 
 func requireAdminOrSameUser(c *gin.Context, targetUserID int64) bool {
 	currentUserID, ok := currentUserID(c)
 	if !ok || c.GetHeader(authRolesHeader) == "" {
-		c.Error(entity.ErrUnauthorized)
+		c.Error(apperror.ErrUnauthorized)
 		return false
 	}
 	if hasRole(c, "admin") {
@@ -157,7 +158,7 @@ func requireAdminOrSameUser(c *gin.Context, targetUserID int64) bool {
 	if currentUserID == targetUserID {
 		return true
 	}
-	c.Error(entity.ErrForbidden)
+	c.Error(apperror.ErrForbidden)
 	return false
 }
 

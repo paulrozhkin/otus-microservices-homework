@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/entity"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -52,7 +53,7 @@ func (r *BillingRepositoryImpl) GetAccount(ctx context.Context, userID int64) (*
 	account := &Account{}
 	if err := r.db.WithContext(ctx).First(account, "user_id = ?", userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("%w: account for user %d", entity.ErrNotFound, userID)
+			return nil, fmt.Errorf("%w: account for user %d", apperror.ErrNotFound, userID)
 		}
 		return nil, err
 	}
@@ -69,14 +70,14 @@ func (r *BillingRepositoryImpl) Debit(ctx context.Context, operationID string, u
 
 func (r *BillingRepositoryImpl) apply(ctx context.Context, operationID string, userID, amount int64, operationType string, debit bool) (*entity.Account, error) {
 	if amount <= 0 {
-		return nil, fmt.Errorf("%w: amount must be positive", entity.ErrInvalidOperation)
+		return nil, fmt.Errorf("%w: amount must be positive", apperror.ErrInvalidOperation)
 	}
 	var result *entity.Account
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		existing := &Operation{}
 		if err := tx.First(existing, "id = ?", operationID).Error; err == nil {
 			if existing.UserID != userID || existing.Amount != amount || existing.Type != operationType {
-				return fmt.Errorf("%w: operation id %s was already used with different parameters", entity.ErrInvalidOperation, operationID)
+				return fmt.Errorf("%w: operation id %s was already used with different parameters", apperror.ErrInvalidOperation, operationID)
 			}
 			account := &Account{}
 			if err = tx.First(account, "user_id = ?", userID).Error; err != nil {
@@ -91,13 +92,13 @@ func (r *BillingRepositoryImpl) apply(ctx context.Context, operationID string, u
 		account := &Account{}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(account, "user_id = ?", userID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("%w: account for user %d", entity.ErrNotFound, userID)
+				return fmt.Errorf("%w: account for user %d", apperror.ErrNotFound, userID)
 			}
 			return err
 		}
 		if debit {
 			if account.Balance < amount {
-				return entity.ErrInsufficientFunds
+				return apperror.ErrInsufficientFunds
 			}
 			account.Balance -= amount
 		} else {
@@ -119,12 +120,12 @@ func (r *BillingRepositoryImpl) Refund(ctx context.Context, originalOperationID 
 	original := &Operation{}
 	if err := r.db.WithContext(ctx).First(original, "id = ?", originalOperationID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("%w: operation %s", entity.ErrNotFound, originalOperationID)
+			return nil, fmt.Errorf("%w: operation %s", apperror.ErrNotFound, originalOperationID)
 		}
 		return nil, err
 	}
 	if original.Type != entity.OperationPayment && original.Type != entity.OperationWithdrawal {
-		return nil, fmt.Errorf("%w: operation %s cannot be refunded", entity.ErrInvalidOperation, originalOperationID)
+		return nil, fmt.Errorf("%w: operation %s cannot be refunded", apperror.ErrInvalidOperation, originalOperationID)
 	}
 	return r.Credit(ctx, "refund:"+originalOperationID, original.UserID, original.Amount, entity.OperationRefund)
 }

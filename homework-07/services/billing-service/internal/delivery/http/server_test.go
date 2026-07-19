@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
+	platformconfig "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/entity"
 	"github.com/stretchr/testify/require"
@@ -41,7 +43,7 @@ func (f *fakeBillingRepository) Refund(context.Context, string) (*entity.Account
 func newTestRouter(repository *fakeBillingRepository) http.Handler {
 	gin.SetMode(gin.TestMode)
 	return NewRouter(RouterConfig{
-		Config: config.Config{App: config.AppConfig{Env: config.DevelopmentEnv}},
+		Config: config.Config{BaseConfig: platformconfig.BaseConfig{App: platformconfig.AppConfig{Env: platformconfig.DevelopmentEnv}}},
 		Logger: zap.NewNop(), Repository: repository,
 	})
 }
@@ -69,7 +71,7 @@ func TestPaymentRejectsInsufficientFunds(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/internal/v1/payments", strings.NewReader(`{"operationId":"order-1","userId":42,"amount":10000}`))
 	req.Header.Set("Content-Type", "application/json")
-	newTestRouter(&fakeBillingRepository{debitErr: errors.Join(errors.New("wrapped"), entity.ErrInsufficientFunds)}).ServeHTTP(w, req)
+	newTestRouter(&fakeBillingRepository{debitErr: errors.Join(errors.New("wrapped"), apperror.ErrInsufficientFunds)}).ServeHTTP(w, req)
 	require.Equal(t, http.StatusConflict, w.Code)
 	require.Contains(t, w.Body.String(), "insufficient funds")
 }

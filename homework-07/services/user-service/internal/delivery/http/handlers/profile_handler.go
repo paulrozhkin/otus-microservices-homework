@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/entity"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/repositories"
 	"go.uber.org/zap"
 )
@@ -34,7 +34,7 @@ func NewProfileHandler(logger *zap.Logger, userRepository repositories.UserRepos
 func (h *ProfileHandler) Get(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
-		c.Error(entity.ErrUnauthorized)
+		c.Error(apperror.ErrUnauthorized)
 		return
 	}
 
@@ -50,7 +50,7 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 func (h *ProfileHandler) Update(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
-		c.Error(entity.ErrUnauthorized)
+		c.Error(apperror.ErrUnauthorized)
 		return
 	}
 

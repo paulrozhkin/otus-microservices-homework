@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	platfordb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/clients"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/config"
 	httpserver "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/delivery/http"
@@ -26,7 +27,7 @@ func New(cfg config.Config) (*App, error) {
 
 	logger.Info("Configuration initialized", zap.Any("config", cfg))
 
-	db, err := repositories.NewDbConnection(cfg.DBConfig)
+	db, err := platfordb.OpenPostgres(cfg.DBConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -35,8 +36,8 @@ func New(cfg config.Config) (*App, error) {
 		Config:         cfg,
 		Logger:         logger,
 		UserRepository: repositories.NewUserRepository(db),
-		HealthChecker:  repositories.NewDBHealthChecker(db),
-		BillingClient:  clients.NewBillingClient(cfg.Billing.BaseURL, cfg.Billing.Timeout),
+		HealthChecker:  platfordb.NewPostgresHealthChecker(db),
+		BillingClient:  clients.NewBillingClient(cfg.Billing.UserServiceBaseURL, cfg.Billing.UserServiceResponseTimeout),
 	})
 
 	server := &http.Server{

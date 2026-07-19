@@ -4,22 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// PostgresConfig contains connection settings shared by all services.
-type PostgresConfig struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
-	TimeZone string
-}
-
-func OpenPostgres(cfg PostgresConfig) (*gorm.DB, error) {
+func OpenPostgres(cfg config.DBConfig) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
 		cfg.Host, cfg.User, cfg.Password, cfg.DBName, cfg.Port, cfg.SSLMode, cfg.TimeZone,

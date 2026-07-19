@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	platfordb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/database"
 	platformmiddleware "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/httpmiddleware"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/docs"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/config"
@@ -22,7 +23,7 @@ type RouterConfig struct {
 	Config         config.Config
 	Logger         *zap.Logger
 	UserRepository repositories.UserRepository
-	HealthChecker  repositories.HealthChecker
+	HealthChecker  platfordb.HealthChecker
 	BillingClient  handlers.AccountProvisioner
 }
 
@@ -88,7 +89,7 @@ func liveness(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func readiness(healthChecker repositories.HealthChecker) gin.HandlerFunc {
+func readiness(healthChecker platfordb.HealthChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
 		defer cancel()

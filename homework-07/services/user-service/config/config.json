@@ -20,7 +20,7 @@
     "timeZone": "UTC"
   },
   "billing": {
-    "baseUrl": "http://localhost:8001",
-    "timeout": "5s"
+    "userServiceBaseURL": "http://localhost:8001",
+    "userServiceResponseTimeout": "5s"
   }
 }

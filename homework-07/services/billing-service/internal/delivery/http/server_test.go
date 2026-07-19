@@ -82,3 +82,26 @@ func TestBillingAPIRequiresAuthHeader(t *testing.T) {
 	newTestRouter(&fakeBillingRepository{}).ServeHTTP(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
+
+func TestBillingSwagger(t *testing.T) {
+	router := newTestRouter(&fakeBillingRepository{})
+
+	t.Run("yaml", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/swagger.yaml", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Contains(t, w.Header().Get("Content-Type"), "application/yaml")
+		require.Contains(t, w.Body.String(), "title: Billing Service")
+		require.Contains(t, w.Body.String(), "/api/v1/billing/deposits:")
+		require.Contains(t, w.Body.String(), "/internal/v1/payments:")
+	})
+
+	t.Run("ui", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/swagger", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Contains(t, w.Header().Get("Content-Type"), "text/html")
+		require.Contains(t, w.Body.String(), "Billing Service Swagger")
+		require.Contains(t, w.Body.String(), `url: "/swagger.yaml"`)
+	})
+}

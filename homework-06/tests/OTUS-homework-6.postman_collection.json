@@ -1,0 +1,586 @@
+{
+  "info": {
+    "_postman_id": "8e2f3d75-8fb7-4f56-b00e-1e6a6a5b0c6f",
+    "name": "OTUS-homework-6-auth-profile",
+    "description": "Registration, authentication, profile, and access isolation scenario for OTUS homework 06.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Register user 1",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const suffix = `${Date.now()}_${pm.variables.replaceIn('{{$randomInt}}')}`;",
+              "pm.collectionVariables.set('user1Login', `user1_${suffix}`);",
+              "pm.collectionVariables.set('user1Password', `pass_${suffix}`);",
+              "pm.collectionVariables.set('user1Email', `user1_${suffix}@example.com`);",
+              "pm.collectionVariables.set('user1FirstName', `First_${suffix}`);",
+              "pm.collectionVariables.set('user1LastName', `Last_${suffix}`);",
+              "pm.collectionVariables.set('user1Phone', `+7100${pm.variables.replaceIn('{{$randomInt}}')}`);",
+              "pm.collectionVariables.set('user1UpdatedFirstName', `Updated_${suffix}`);",
+              "pm.collectionVariables.set('user1UpdatedLastName', `Profile_${suffix}`);",
+              "pm.collectionVariables.set('user1UpdatedEmail', `updated_user1_${suffix}@example.com`);",
+              "pm.collectionVariables.set('user1UpdatedPhone', `+7200${pm.variables.replaceIn('{{$randomInt}}')}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "pm.collectionVariables.set('user1Id', json.id);",
+              "",
+              "pm.test('registered user 1 has expected data', function () {",
+              "    pm.expect(json.id).to.be.a('number');",
+              "    pm.expect(json.username).to.eql(pm.collectionVariables.get('user1Login'));",
+              "    pm.expect(json.email).to.eql(pm.collectionVariables.get('user1Email'));",
+              "    pm.expect(json.roles).to.include('user');",
+              "    pm.expect(json).to.not.have.property('password');",
+              "    pm.expect(json).to.not.have.property('passwordHash');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"{{user1Login}}\",\n  \"password\": \"{{user1Password}}\",\n  \"firstName\": \"{{user1FirstName}}\",\n  \"lastName\": \"{{user1LastName}}\",\n  \"email\": \"{{user1Email}}\",\n  \"phone\": \"{{user1Phone}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://{{baseUrl}}/register",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "02 Get profile without login is denied",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://{{baseUrl}}/api/v1/profile",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "03 Update profile without login is denied",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"{{user1UpdatedFirstName}}\",\n  \"lastName\": \"{{user1UpdatedLastName}}\",\n  \"email\": \"{{user1UpdatedEmail}}\",\n  \"phone\": \"{{user1UpdatedPhone}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://{{baseUrl}}/api/v1/profile",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "04 Login user 1",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('session cookie is set', function () {",
+              "    pm.expect(pm.response.headers.get('Set-Cookie')).to.include('session_id=');",
+              "});",
+              "",
+              "pm.test('login response is ok', function () {",
+              "    pm.expect(pm.response.json().status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"{{user1Login}}\",\n  \"password\": \"{{user1Password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://{{baseUrl}}/login",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "05 Update user 1 profile",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "pm.test('profile was updated', function () {",
+              "    pm.expect(json.id).to.eql(Number(pm.collectionVariables.get('user1Id')));",
+              "    pm.expect(json.username).to.eql(pm.collectionVariables.get('user1Login'));",
+              "    pm.expect(json.firstName).to.eql(pm.collectionVariables.get('user1UpdatedFirstName'));",
+              "    pm.expect(json.lastName).to.eql(pm.collectionVariables.get('user1UpdatedLastName'));",
+              "    pm.expect(json.email).to.eql(pm.collectionVariables.get('user1UpdatedEmail'));",
+              "    pm.expect(json.phone).to.eql(pm.collectionVariables.get('user1UpdatedPhone'));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"{{user1UpdatedFirstName}}\",\n  \"lastName\": \"{{user1UpdatedLastName}}\",\n  \"email\": \"{{user1UpdatedEmail}}\",\n  \"phone\": \"{{user1UpdatedPhone}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://{{baseUrl}}/api/v1/profile",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "06 Check user 1 profile changed",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "pm.test('profile contains updated data', function () {",
+              "    pm.expect(json.id).to.eql(Number(pm.collectionVariables.get('user1Id')));",
+              "    pm.expect(json.username).to.eql(pm.collectionVariables.get('user1Login'));",
+              "    pm.expect(json.firstName).to.eql(pm.collectionVariables.get('user1UpdatedFirstName'));",
+              "    pm.expect(json.lastName).to.eql(pm.collectionVariables.get('user1UpdatedLastName'));",
+              "    pm.expect(json.email).to.eql(pm.collectionVariables.get('user1UpdatedEmail'));",
+              "    pm.expect(json.phone).to.eql(pm.collectionVariables.get('user1UpdatedPhone'));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://{{baseUrl}}/api/v1/profile",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "07 Logout user 1",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('logout response is ok', function () {",
+              "    pm.expect(pm.response.json().status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "http://{{baseUrl}}/logout",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "logout"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "08 Register user 2",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const suffix = `${Date.now()}_${pm.variables.replaceIn('{{$randomInt}}')}`;",
+              "pm.collectionVariables.set('user2Login', `user2_${suffix}`);",
+              "pm.collectionVariables.set('user2Password', `pass_${suffix}`);",
+              "pm.collectionVariables.set('user2Email', `user2_${suffix}@example.com`);",
+              "pm.collectionVariables.set('user2FirstName', `Second_${suffix}`);",
+              "pm.collectionVariables.set('user2LastName', `Client_${suffix}`);",
+              "pm.collectionVariables.set('user2Phone', `+7300${pm.variables.replaceIn('{{$randomInt}}')}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "pm.collectionVariables.set('user2Id', json.id);",
+              "",
+              "pm.test('registered user 2 has expected data', function () {",
+              "    pm.expect(json.id).to.be.a('number');",
+              "    pm.expect(json.username).to.eql(pm.collectionVariables.get('user2Login'));",
+              "    pm.expect(json.email).to.eql(pm.collectionVariables.get('user2Email'));",
+              "    pm.expect(json.id).to.not.eql(Number(pm.collectionVariables.get('user1Id')));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"{{user2Login}}\",\n  \"password\": \"{{user2Password}}\",\n  \"firstName\": \"{{user2FirstName}}\",\n  \"lastName\": \"{{user2LastName}}\",\n  \"email\": \"{{user2Email}}\",\n  \"phone\": \"{{user2Phone}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://{{baseUrl}}/register",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "09 Login user 2",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('session cookie is set', function () {",
+              "    pm.expect(pm.response.headers.get('Set-Cookie')).to.include('session_id=');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"{{user2Login}}\",\n  \"password\": \"{{user2Password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://{{baseUrl}}/login",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "10 User 2 cannot read user 1 by id",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 403', function () {",
+              "    pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://{{baseUrl}}/api/v1/users/{{user1Id}}",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "users",
+            "{{user1Id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "11 User 2 cannot update user 1 by id",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 403', function () {",
+              "    pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{user1Login}}\",\n  \"firstName\": \"Blocked\",\n  \"lastName\": \"Attempt\",\n  \"email\": \"blocked_{{user1Email}}\",\n  \"phone\": \"+79990000000\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://{{baseUrl}}/api/v1/users/{{user1Id}}",
+          "protocol": "http",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "users",
+            "{{user1Id}}"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log(`[request] ${pm.request.method} ${pm.variables.replaceIn(pm.request.url.toString())}`);",
+          "if (pm.request.body && pm.request.body.raw) {",
+          "    console.log(`[request body] ${pm.variables.replaceIn(pm.request.body.raw)}`);",
+          "}",
+          "console.log(`[response] ${pm.response.code} ${pm.response.status}`);",
+          "console.log(`[response body] ${pm.response.text()}`);"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "arch.homework",
+      "type": "string"
+    },
+    {
+      "key": "user1Id",
+      "value": ""
+    },
+    {
+      "key": "user2Id",
+      "value": ""
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+# Default values for users-service.
+
+replicaCount: 2
+
+names:
+  app: users-app
+  service: users-service
+  configMap: users-config-map
+  secret: users-secret
+  ingress: users-ingress
+  publicIngress: users-public-ingress
+  protectedIngress: users-protected-ingress
+  postgres: users-psql
+  postgresService: users-db-service
+  migrationJob: users-db-migration-job
+
+image:
+  repository: paulrozhkin/otus-microservices-homework-06
+  pullPolicy: IfNotPresent
+  tag: latest
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+
+app:
+  env: production
+  name: users-service
+  containerPort: 8000
+
+http:
+  addr: ":8000"
+  shutdownTimeout: 5s
+
+db:
+  host: users-db-service
+  port: "5432"
+  timezone: UTC
+  name: user_service
+  user: user_service
+  password: user_service
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8000
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+  annotations: {}
+  namespaceSelector: {}
+
+grafanaDashboard:
+  enabled: true
+  namespace: monitoring
+  label: grafana_dashboard
+  labelValue: "1"
+  annotations: {}
+  labels: {}
+
+grafanaAlerting:
+  enabled: true
+  namespace: monitoring
+  label: grafana_alert
+  labelValue: "1"
+  annotations: {}
+  labels: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  public:
+    annotations: {}
+    paths:
+      - path: /register
+        pathType: Exact
+      - path: /login
+        pathType: Exact
+      - path: /logout
+        pathType: Exact
+      - path: /auth
+        pathType: Exact
+      - path: /health
+        pathType: Exact
+      - path: /swagger
+        pathType: Exact
+      - path: /swagger.yaml
+        pathType: Exact
+  protected:
+    annotations: {}
+    authResponseHeaders: "X-Auth-UserId,X-Auth-User,X-Auth-Email,X-Auth-Roles"
+    paths:
+      - path: /api/v1
+        pathType: Prefix
+  hosts:
+    - host: arch.homework
+  tls: []
+
+ingressNginx:
+  enabled: true
+
+ingress-nginx:
+  controller:
+    kind: DaemonSet
+    reportNodeInternalIp: true
+    hostPort:
+      enabled: true
+      ports:
+        http: 80
+        https: 443
+    service:
+      type: NodePort
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        additionalLabels: {}
+        scrapeInterval: 15s
+
+postgresql:
+  enabled: true
+  fullnameOverride: users-db-service
+  image:
+    tag: latest
+  auth:
+    username: user_service
+    password: user_service
+    database: user_service
+  primary:
+    persistence:
+      size: 500Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 15s
+      scrapeTimeout: 10s
+      labels: {}
+
+migration:
+  enabled: true
+  backoffLimit: 6
+  hook:
+    enabled: true
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

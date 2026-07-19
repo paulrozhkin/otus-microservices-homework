@@ -1,0 +1,14 @@
+Users service has been installed.
+
+Health endpoint:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  http://{{ $host.host }}/health
+{{- end }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ .Values.names.service }} 8080:{{ .Values.service.port }}
+  http://127.0.0.1:8080/health
+{{- end }}
+
+Migration job logs:
+  kubectl --namespace {{ .Release.Namespace }} logs job/{{ .Values.names.migrationJob }}

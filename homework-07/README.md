@@ -57,19 +57,21 @@ Mermaid source: [architecture.mmd](./docs/architecture.mmd)
 
 Test:
 ```powershell
-go test ./services/user-service/... ./services/billing-service/... ./internal/platform/...
+go test ./services/user-service/... ./services/billing-service/... ./services/order-service/... ./internal/platform/...
 ```
 
 Build:
 ```powershell
 docker build --platform linux/amd64 -f services/user-service/Dockerfile -t paulrozhkin/otus-microservices-homework-07-user-service:latest .
 docker build --platform linux/amd64 -f services/billing-service/Dockerfile -t paulrozhkin/otus-microservices-homework-07-billing-service:latest .
+docker build --platform linux/amd64 -f services/order-service/Dockerfile -t paulrozhkin/otus-microservices-homework-07-order-service:latest .
 ```
 
 Push:
 ```powershell
 docker push paulrozhkin/otus-microservices-homework-07-user-service:latest
 docker push paulrozhkin/otus-microservices-homework-07-billing-service:latest
+docker push paulrozhkin/otus-microservices-homework-07-order-service:latest
 ```
 
 

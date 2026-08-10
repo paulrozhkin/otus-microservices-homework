@@ -21,11 +21,13 @@ type ReaderConsumer struct {
 
 func NewConsumer(brokers []string, topic, groupID string) *ReaderConsumer {
 	return &ReaderConsumer{reader: segmentkafka.NewReader(segmentkafka.ReaderConfig{
-		Brokers:  brokers,
-		Topic:    topic,
-		GroupID:  groupID,
-		MinBytes: 1,
-		MaxBytes: 10e6,
+		Brokers:               brokers,
+		Topic:                 topic,
+		GroupID:               groupID,
+		StartOffset:           segmentkafka.FirstOffset,
+		WatchPartitionChanges: true,
+		MinBytes:              1,
+		MaxBytes:              10e6,
 	})}
 }
 

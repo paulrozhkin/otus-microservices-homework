@@ -27,6 +27,41 @@ services:
     networks:
       - backend
 
+  kafka-init:
+    image: apache/kafka:3.9.1
+    restart: "no"
+    command:
+      - /opt/kafka/bin/kafka-topics.sh
+      - --bootstrap-server
+      - kafka:29092
+      - --create
+      - --if-not-exists
+      - --topic
+      - notification.requested.v1
+      - --partitions
+      - "1"
+      - --replication-factor
+      - "1"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - backend
+
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+
   user-postgres:
     image: postgres:16
     ports:
@@ -221,8 +256,8 @@ services:
         condition: service_completed_successfully
       billing-service:
         condition: service_started
-      kafka:
-        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     networks:
       - monitoring
       - backend
@@ -289,8 +324,8 @@ services:
         condition: service_healthy
       notification-migrate:
         condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     networks:
       - monitoring
       - backend

@@ -227,6 +227,74 @@ services:
       - monitoring
       - backend
 
+  notification-postgres:
+    image: postgres:16
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_DB: notification_service
+      POSTGRES_USER: notification_service
+      POSTGRES_PASSWORD: notification_service
+    volumes:
+      - notification-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification_service -d notification_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  notification-migrate:
+    build:
+      context: ../..
+      dockerfile: services/notification-service/Dockerfile
+    command: ["migrate"]
+    environment:
+      OTUS_NOTIFICATION_SERVICE_DB_HOST: notification-postgres
+      OTUS_NOTIFICATION_SERVICE_DB_PORT: 5432
+      OTUS_NOTIFICATION_SERVICE_DB_USER: notification_service
+      OTUS_NOTIFICATION_SERVICE_DB_PASSWORD: notification_service
+      OTUS_NOTIFICATION_SERVICE_DB_DBNAME: notification_service
+      OTUS_NOTIFICATION_SERVICE_DB_SSLMODE: disable
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  notification-service:
+    build:
+      context: ../..
+      dockerfile: services/notification-service/Dockerfile
+    container_name: notification-service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      OTUS_NOTIFICATION_SERVICE_APP_NAME: notification-service
+      OTUS_NOTIFICATION_SERVICE_APP_ENV: development
+      OTUS_NOTIFICATION_SERVICE_HTTP_ADDR: 0.0.0.0:8003
+      OTUS_NOTIFICATION_SERVICE_DB_HOST: notification-postgres
+      OTUS_NOTIFICATION_SERVICE_DB_PORT: 5432
+      OTUS_NOTIFICATION_SERVICE_DB_USER: notification_service
+      OTUS_NOTIFICATION_SERVICE_DB_PASSWORD: notification_service
+      OTUS_NOTIFICATION_SERVICE_DB_DBNAME: notification_service
+      OTUS_NOTIFICATION_SERVICE_DB_SSLMODE: disable
+      OTUS_NOTIFICATION_SERVICE_KAFKA_BROKERS: kafka:29092
+      OTUS_NOTIFICATION_SERVICE_KAFKA_TOPIC: notification.requested.v1
+      OTUS_NOTIFICATION_SERVICE_KAFKA_GROUP_ID: notification-service-v1
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+      notification-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    networks:
+      - monitoring
+      - backend
+
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
@@ -287,5 +355,6 @@ volumes:
   user-postgres-data:
   billing-postgres-data:
   order-postgres-data:
+  notification-postgres-data:
   prometheus_data:
   grafana-data:

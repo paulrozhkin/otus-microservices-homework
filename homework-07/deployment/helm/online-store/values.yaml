@@ -12,7 +12,7 @@ user-service:
     tag: latest
   service:
     port: 8000
-  replicaCount: 1
+  replicaCount: 2
   database:
     username: user_service
     password: user_service
@@ -29,7 +29,7 @@ billing-service:
     tag: latest
   service:
     port: 8001
-  replicaCount: 1
+  replicaCount: 2
   database:
     username: billing_service
     password: billing_service
@@ -44,7 +44,7 @@ order-service:
     tag: latest
   service:
     port: 8002
-  replicaCount: 1
+  replicaCount: 2
   database:
     username: order_service
     password: order_service
@@ -63,7 +63,7 @@ notification-service:
     tag: latest
   service:
     port: 8003
-  replicaCount: 1
+  replicaCount: 2
   database:
     username: notification_service
     password: notification_service
@@ -81,7 +81,7 @@ kafka:
     tag: "3.9.1"
   topic:
     name: notification.requested.v1
-    partitions: 1
+    partitions: 2
     replicationFactor: 1
   persistence:
     enabled: true

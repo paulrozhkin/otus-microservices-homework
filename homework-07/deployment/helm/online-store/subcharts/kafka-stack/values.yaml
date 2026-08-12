@@ -8,7 +8,7 @@ image:
   tag: "3.9.1"
 topic:
   name: notification.requested.v1
-  partitions: 1
+  partitions: 2
   replicationFactor: 1
 persistence:
   enabled: true

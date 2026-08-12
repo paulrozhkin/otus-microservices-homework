@@ -1,0 +1,128 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "sum by (method, path) (rate(http_requests_total{namespace=\"$namespace\",service=~\"$service\"}[$__rate_interval]))", "legendFormat": "{{method}} {{path}}", "refId": "A"}],
+      "title": "Request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "100 * sum by (service) (rate(http_requests_total{namespace=\"$namespace\",service=~\"$service\",status=~\"5..\"}[$__rate_interval])) / clamp_min(sum by (service) (rate(http_requests_total{namespace=\"$namespace\",service=~\"$service\"}[$__rate_interval])), 0.001)", "legendFormat": "{{service}}", "refId": "A"}],
+      "title": "5xx error rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 16, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le,service) (rate(http_request_duration_seconds_bucket{namespace=\"$namespace\",service=~\"$service\"}[$__rate_interval])))", "legendFormat": "p50 {{service}}", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum by (le,service) (rate(http_request_duration_seconds_bucket{namespace=\"$namespace\",service=~\"$service\"}[$__rate_interval])))", "legendFormat": "p95 {{service}}", "refId": "B"},
+        {"expr": "histogram_quantile(0.99, sum by (le,service) (rate(http_request_duration_seconds_bucket{namespace=\"$namespace\",service=~\"$service\"}[$__rate_interval])))", "legendFormat": "p99 {{service}}", "refId": "C"}
+      ],
+      "title": "Request latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "DOWN"}, "1": {"color": "green", "text": "UP"}}, "type": "value"}]}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "id": 4,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"expr": "up{namespace=\"$namespace\",service=~\"$service\"}", "legendFormat": "{{service}}", "refId": "A"}],
+      "title": "Service availability",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 16},
+      "id": 5,
+      "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"expr": "sum(online_store_users_created_total{namespace=\"$namespace\"})", "legendFormat": "users", "refId": "A"}],
+      "title": "Users created since pod start",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 9, "x": 6, "y": 16},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "sum by (status) (online_store_orders_created_total{namespace=\"$namespace\"})", "legendFormat": "{{status}}", "refId": "A"}],
+      "title": "Orders created by status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 9, "x": 15, "y": 16},
+      "id": 7,
+      "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"expr": "100 * sum(online_store_orders_created_total{namespace=\"$namespace\",status=\"paid\"}) / clamp_min(sum(online_store_orders_created_total{namespace=\"$namespace\",status=~\"paid|rejected\"}), 1)", "legendFormat": "paid orders", "refId": "A"}],
+      "title": "Order payment success rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"decimals": 0, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 22},
+      "id": 8,
+      "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"expr": "sum(online_store_paid_order_value_minor_units_total{namespace=\"$namespace\"})", "legendFormat": "minor units", "refId": "A"}],
+      "title": "Paid order value (minor units)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 22},
+      "id": 9,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "sum by (type, result) (increase(online_store_billing_operations_total{namespace=\"$namespace\"}[$__range]))", "legendFormat": "{{type}} {{result}}", "refId": "A"}],
+      "title": "Billing operations in selected period",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 22},
+      "id": 10,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "sum by (order_status) (online_store_notifications_processed_total{namespace=\"$namespace\"})", "legendFormat": "{{order_status}}", "refId": "A"}],
+      "title": "Notifications processed by order status",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["otus", "online-store", "microservices"],
+  "templating": {
+    "list": [
+      {"name": "datasource", "label": "Datasource", "query": "prometheus", "type": "datasource", "refresh": 1},
+      {"name": "namespace", "label": "Namespace", "type": "query", "datasource": {"type": "prometheus", "uid": "${datasource}"}, "query": {"query": "label_values(http_requests_total, namespace)"}, "current": {"selected": true, "text": "online-store", "value": "online-store"}, "refresh": 1},
+      {"name": "service", "label": "Service", "type": "query", "datasource": {"type": "prometheus", "uid": "${datasource}"}, "query": {"query": "label_values(http_requests_total{namespace=\"$namespace\"}, service)"}, "includeAll": true, "allValue": ".*", "multi": true, "refresh": 2}
+    ]
+  },
+  "time": {"from": "now-30m", "to": "now"},
+  "timezone": "browser",
+  "title": "Online Store Observability",
+  "uid": "online-store-observability",
+  "version": 1
+}

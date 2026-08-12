@@ -11,6 +11,7 @@ import (
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/order-service/internal/entity"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/order-service/internal/events"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/order-service/internal/metrics"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/order-service/internal/repositories"
 )
 
@@ -58,6 +59,7 @@ func (s *OrderService) Create(ctx context.Context, userID int64, email string, p
 	if err = s.repository.Update(ctx, order); err != nil {
 		return nil, err
 	}
+	businessmetrics.OrderFinalized(string(order.Status), order.Price)
 	if err = s.publishNotification(ctx, order); err != nil {
 		return nil, err
 	}

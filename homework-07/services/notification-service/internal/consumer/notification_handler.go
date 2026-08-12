@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/notification-service/internal/entity"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/notification-service/internal/metrics"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/notification-service/internal/repositories"
 )
 
@@ -40,11 +41,15 @@ func (h *NotificationHandler) Handle(ctx context.Context, _, value []byte) error
 	if err := validateEvent(event); err != nil {
 		return err
 	}
-	return h.repository.Create(ctx, &entity.Notification{
+	if err := h.repository.Create(ctx, &entity.Notification{
 		EventID: event.EventID, OrderID: event.OrderID, UserID: event.UserID,
 		Email: event.Email, OrderStatus: event.OrderStatus, Subject: event.Subject,
 		Body: event.Body, CreatedAt: event.OccurredAt,
-	})
+	}); err != nil {
+		return err
+	}
+	businessmetrics.NotificationProcessed(event.OrderStatus)
+	return nil
 }
 
 func validateEvent(event *NotificationRequested) error {

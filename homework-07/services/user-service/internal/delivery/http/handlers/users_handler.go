@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/entity"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/metrics"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/repositories"
 	"go.uber.org/zap"
 )
@@ -63,6 +64,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 			return
 		}
 	}
+	businessmetrics.UserCreated("admin_api")
 
 	c.JSON(http.StatusCreated, createdUser)
 }

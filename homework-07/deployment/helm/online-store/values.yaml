@@ -104,6 +104,18 @@ ingress:
 ingressNginx:
   enabled: true
 
+observability:
+  grafanaDashboard:
+    enabled: true
+    namespace: monitoring
+    label: grafana_dashboard
+    labelValue: "1"
+  grafanaAlerting:
+    enabled: true
+    namespace: monitoring
+    label: grafana_alert
+    labelValue: "1"
+
 ingress-nginx:
   controller:
     kind: DaemonSet

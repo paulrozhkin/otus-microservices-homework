@@ -147,6 +147,9 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false `
   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false `
   --set grafana.adminPassword=admin `
+  --set grafana.sidecar.dashboards.enabled=true `
+  --set grafana.sidecar.dashboards.label=grafana_dashboard `
+  --set grafana.sidecar.dashboards.searchNamespace=monitoring `
   --set grafana.sidecar.alerts.enabled=true `
   --set grafana.sidecar.alerts.label=grafana_alert `
   --set grafana.sidecar.alerts.searchNamespace=monitoring `
@@ -182,7 +185,15 @@ helm dependency build .
 helm upgrade --install online-store . `
   -n online-store `
   --create-namespace `
-  --wait
+  --wait `
+  --wait-for-jobs
+```
+
+Проверка ресурсов мониторинга:
+```aiignore
+kubectl -n online-store get servicemonitors
+kubectl -n monitoring get configmap -l grafana_dashboard=1
+kubectl -n monitoring get configmap -l grafana_alert=1
 ```
 6. Если minikube запущен с driver=docker, то выполнить тунелирование:
 ```aiignore

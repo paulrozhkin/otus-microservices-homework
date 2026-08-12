@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/entity"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/metrics"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/user-service/internal/repositories"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -92,6 +93,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			return
 		}
 	}
+	businessmetrics.UserCreated("registration")
 
 	c.JSON(http.StatusCreated, createdUser)
 }

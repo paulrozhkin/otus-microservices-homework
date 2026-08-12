@@ -16,6 +16,13 @@ image:
 service:
   port: 8000
 
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+  annotations: {}
+
 database:
   image:
     repository: postgres

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/entity"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/metrics"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-07/services/billing-service/internal/repositories"
 )
 
@@ -46,6 +47,7 @@ func (h *BillingHandler) CreateAccount(c *gin.Context) {
 	status := http.StatusOK
 	if created {
 		status = http.StatusCreated
+		businessmetrics.AccountCreated()
 	}
 	c.JSON(status, account)
 }
@@ -89,9 +91,11 @@ func (h *BillingHandler) changeBalance(c *gin.Context, debit bool, operationType
 		account, err = h.repository.Credit(c, request.OperationID, userID, request.Amount, operationType)
 	}
 	if err != nil {
+		businessmetrics.BillingOperation(operationType, "failed")
 		c.Error(err)
 		return
 	}
+	businessmetrics.BillingOperation(operationType, "succeeded")
 	c.JSON(http.StatusOK, gin.H{"operationId": request.OperationID, "account": account})
 }
 
@@ -103,18 +107,22 @@ func (h *BillingHandler) Pay(c *gin.Context) {
 	}
 	account, err := h.repository.Debit(c, request.OperationID, request.UserID, request.Amount, entity.OperationPayment)
 	if err != nil {
+		businessmetrics.BillingOperation(entity.OperationPayment, "failed")
 		c.Error(err)
 		return
 	}
+	businessmetrics.BillingOperation(entity.OperationPayment, "succeeded")
 	c.JSON(http.StatusOK, gin.H{"operationId": request.OperationID, "status": "succeeded", "account": account})
 }
 
 func (h *BillingHandler) Refund(c *gin.Context) {
 	account, err := h.repository.Refund(c, c.Param("operationId"))
 	if err != nil {
+		businessmetrics.BillingOperation("refund", "failed")
 		c.Error(err)
 		return
 	}
+	businessmetrics.BillingOperation("refund", "succeeded")
 	c.JSON(http.StatusOK, gin.H{"operationId": c.Param("operationId"), "status": "refunded", "account": account})
 }
 

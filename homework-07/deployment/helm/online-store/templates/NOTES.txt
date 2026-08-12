@@ -1,0 +1,12 @@
+Application host: http://{{ .Values.ingress.host }}
+
+Check workloads:
+  kubectl get pods -n {{ .Release.Namespace }}
+
+{{- if .Values.kafka.ui.enabled }}
+Open Kafbat UI:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "online-store.componentName" (dict "root" . "component" "kafka-ui") }} 8080:{{ .Values.kafka.ui.port }}
+{{- end }}
+
+Run Newman from the homework-07 directory:
+  newman run tests/OTUS-homework-7.postman_collection.json --reporters cli --verbose

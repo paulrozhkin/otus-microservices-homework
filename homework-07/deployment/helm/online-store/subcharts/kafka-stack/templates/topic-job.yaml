@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "kafka-stack.fullname" . }}-topic-init
+  labels:
+    {{- include "kafka-stack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: topic-init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "kafka-stack.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: topic-init
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: topic-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command: ["/opt/kafka/bin/kafka-topics.sh"]
+          args:
+            - --bootstrap-server
+            - {{ printf "%s:29092" (include "kafka-stack.fullname" .) | quote }}
+            - --create
+            - --if-not-exists
+            - --topic
+            - {{ .Values.topic.name | quote }}
+            - --partitions
+            - {{ .Values.topic.partitions | quote }}
+            - --replication-factor
+            - {{ .Values.topic.replicationFactor | quote }}

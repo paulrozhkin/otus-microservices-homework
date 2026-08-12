@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	segmentkafka "github.com/segmentio/kafka-go"
 )
@@ -38,7 +39,10 @@ func (c *ReaderConsumer) Consume(ctx context.Context, handler Handler) error {
 			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
 				return nil
 			}
-			return fmt.Errorf("fetch kafka message: %w", err)
+			if err = waitForRetry(ctx, time.Second); err != nil {
+				return nil
+			}
+			continue
 		}
 		if err = handler(ctx, message.Key, message.Value); err != nil {
 			return fmt.Errorf("handle kafka message: %w", err)
@@ -46,6 +50,17 @@ func (c *ReaderConsumer) Consume(ctx context.Context, handler Handler) error {
 		if err = c.reader.CommitMessages(ctx, message); err != nil {
 			return fmt.Errorf("commit kafka message: %w", err)
 		}
+	}
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 

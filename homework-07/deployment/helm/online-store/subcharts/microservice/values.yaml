@@ -11,6 +11,7 @@ replicaCount: 1
 image:
   repository: example/service
   tag: latest
+  pullPolicy: ""
 
 service:
   port: 8000

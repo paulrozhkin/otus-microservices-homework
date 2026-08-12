@@ -75,11 +75,11 @@ spec:
             - name: KAFKA_LOG_DIRS
               value: /var/lib/kafka/data
           readinessProbe:
-            exec:
-              command: ["/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:29092", "--list"]
+            tcpSocket:
+              port: broker
             initialDelaySeconds: 15
-            periodSeconds: 10
-            timeoutSeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
           livenessProbe:
             tcpSocket:
               port: broker

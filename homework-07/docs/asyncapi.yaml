@@ -1,0 +1,113 @@
+asyncapi: 3.0.0
+info:
+  title: Online Store Notification Events
+  version: 1.0.0
+  description: |
+    Асинхронный контракт между Order Service и Notification Service.
+    Order Service публикует результат обработки заказа, а Notification Service
+    сохраняет соответствующее email-сообщение в своей базе данных.
+defaultContentType: application/json
+servers:
+  kafka:
+    host: online-store-kafka:29092
+    protocol: kafka
+    description: Kafka внутри Kubernetes namespace online-store
+channels:
+  notificationRequested:
+    address: notification.requested.v1
+    description: Запрос на сохранение уведомления о результате оформления заказа.
+    messages:
+      notificationRequested:
+        $ref: '#/components/messages/NotificationRequested'
+operations:
+  publishNotificationRequested:
+    action: send
+    summary: Order Service публикует результат обработки заказа.
+    channel:
+      $ref: '#/channels/notificationRequested'
+    messages:
+      - $ref: '#/channels/notificationRequested/messages/notificationRequested'
+  consumeNotificationRequested:
+    action: receive
+    summary: Notification Service получает событие и сохраняет сообщение.
+    description: |
+      Экземпляры Notification Service используют consumer group
+      notification-service-v1. Offset подтверждается после успешной записи в БД.
+    channel:
+      $ref: '#/channels/notificationRequested'
+    messages:
+      - $ref: '#/channels/notificationRequested/messages/notificationRequested'
+components:
+  messages:
+    NotificationRequested:
+      name: notification.requested.v1
+      title: Notification requested
+      summary: Результат оплаты заказа, из которого формируется email-уведомление.
+      correlationId:
+        location: $message.payload#/orderId
+      bindings:
+        kafka:
+          key:
+            type: string
+            format: uuid
+            description: orderId; сохраняет порядок событий одного заказа в одной партиции.
+          bindingVersion: 0.5.0
+      payload:
+        $ref: '#/components/schemas/NotificationRequestedPayload'
+      examples:
+        - name: paidOrder
+          summary: Платёж успешно выполнен
+          payload:
+            eventId: e11df7fd-3de3-4a60-8b1c-d0b782c00e16
+            eventType: notification.requested.v1
+            orderId: 7d6dabe7-c8cb-46f1-a2f0-d27cdc3239fb
+            userId: 42
+            email: user@example.com
+            orderStatus: paid
+            subject: Order paid
+            body: Your order has been successfully paid
+            occurredAt: '2026-08-12T18:06:39Z'
+  schemas:
+    NotificationRequestedPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - eventId
+        - eventType
+        - orderId
+        - userId
+        - email
+        - orderStatus
+        - subject
+        - body
+        - occurredAt
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Ключ идемпотентности Notification Service.
+        eventType:
+          type: string
+          const: notification.requested.v1
+        orderId:
+          type: string
+          format: uuid
+        userId:
+          type: integer
+          format: int64
+          minimum: 1
+        email:
+          type: string
+          format: email
+        orderStatus:
+          type: string
+          enum: [paid, rejected]
+        subject:
+          type: string
+          minLength: 1
+        body:
+          type: string
+          minLength: 1
+        occurredAt:
+          type: string
+          format: date-time

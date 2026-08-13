@@ -1,32 +1,48 @@
 flowchart LR
-    client["Client / Newman"]
+    client["Client / Newman<br/>arch.homework"]
 
-    subgraph ns["Kubernetes namespace: users-service"]
-        subgraph nginx["nginx-ingress-controller"]
-            public["users-public-ingress<br/>/register<br/>/login<br/>/logout<br/>/auth<br/>/health<br/>/swagger"]
-            protected["users-protected-ingress<br/>/api/v1/*<br/>nginx auth-url -> /auth"]
+    subgraph cluster["Kubernetes namespace: online-store"]
+        ingress["nginx Ingress<br/>cookie auth via /auth"]
+
+        subgraph applications["Application services — 2 replicas each"]
+            users["User Service<br/>:8000"]
+            orders["Order Service<br/>:8002"]
+            billing["Billing Service<br/>:8001"]
+            notifications["Notification Service<br/>:8003<br/>consumer group: notification-service-v1"]
         end
 
-        subgraph service["users-service<br/>Go server<br/>replicaCount: 2"]
-            auth["Auth API<br/>/register<br/>/login<br/>/logout<br/>/auth"]
-            profile["Profile API<br/>GET /api/v1/profile<br/>PUT /api/v1/profile"]
-            users["Users API<br/>role-aware CRUD"]
-        end
+        userdb[("User PostgreSQL<br/>users and sessions")]
+        orderdb[("Order PostgreSQL<br/>orders")]
+        billingdb[("Billing PostgreSQL<br/>accounts and operations")]
+        notificationdb[("Notification PostgreSQL<br/>email messages")]
 
-        db[("PostgreSQL<br/>users<br/>sessions")]
+        kafka[["Kafka<br/>notification.requested.v1<br/>2 partitions"]]
+        kafkaui["Kafbat UI"]
     end
 
-    client -->|"register / login / logout"| public
-    public -->|"direct HTTP"| auth
-    auth -->|"user create, validate,<br/>store sessions"| db
+    client -->|"public and protected HTTP API"| ingress
+    ingress -->|"register, login, auth, profile"| users
+    ingress -->|"orders API"| orders
+    ingress -->|"billing API"| billing
+    ingress -->|"notifications API"| notifications
 
-    client -->|"/api/v1/profile<br/>/api/v1/users"| protected
-    protected -->|"GET /auth<br/>with session_id cookie"| auth
-    auth -->|"200 + X-Auth-* headers"| protected
-    protected -->|"forward original request<br/>with X-Auth-* headers"| profile
-    protected -->|"forward original request<br/>with X-Auth-* headers"| users
+    users -->|"users and sessions"| userdb
+    users -->|"PUT /internal/v1/accounts/{userId}"| billing
 
-    profile -->|"read/update current user"| db
-    users -->|"admin CRUD or user self-access"| db
+    orders -->|"orders"| orderdb
+    orders -->|"POST /internal/v1/payments<br/>operationId = order:{orderId}"| billing
+    billing -->|"accounts and idempotent operations"| billingdb
 
-    protected -.->|"if /auth returns 401,<br/>nginx reject request with 401"| client
+    orders -->|"publish; key = orderId"| kafka
+    kafka -->|"partition assignment and rebalance"| notifications
+    notifications -->|"idempotent insert; PK = eventId"| notificationdb
+    notifications -->|"list stored messages"| ingress
+
+    kafkaui -.->|"inspect topics and consumer groups"| kafka
+
+    classDef service fill:#e8f0fe,stroke:#3167b1,color:#13233a
+    classDef database fill:#fff4d6,stroke:#a46b00,color:#352200
+    classDef broker fill:#e8f7ec,stroke:#287a3e,color:#12351d
+    class users,orders,billing,notifications service
+    class userdb,orderdb,billingdb,notificationdb database
+    class kafka broker

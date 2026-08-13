@@ -78,23 +78,47 @@
 * отображение данных запроса и данных ответа при запуске из командной строки с помощью Newman.
 
 
-## Architecture
+## Архитектурное решение
 
-Приложение оставлено в виде одного сервиса `users-service`. Данные пользователей и сессии хранятся в PostgreSQL. После входа пользователь получает cookie `session_id`, а сама сессия сохраняется в базе. Благодаря этому проверка авторизации работает одинаково при нескольких репликах приложения.
+Выбран и реализован гибридный вариант: **синхронное HTTP-взаимодействие с Billing Service и асинхронная отправка нотификаций через Kafka**.
 
-Для входящего трафика используются два Ingress правила на одном домене `arch.homework`.
+Система состоит из четырех самостоятельных Go-сервисов с отдельными Go modules, Docker-образами и PostgreSQL:
 
-`users-public-ingress` открыт без авторизации. Через него доступны `/register`, `/login`, `/logout`, `/auth`, `/health`, `/swagger` и `/swagger.yaml`.
+* `user-service` хранит пользователей и серверные сессии. После создания пользователя синхронно и идемпотентно вызывает Billing Service для создания счета;
+* `billing-service` владеет счетами, балансами и операциями. Денежные значения передаются целыми числами в минимальных денежных единицах;
+* `order-service` создает заказ, синхронно вызывает Billing Service для оплаты и сохраняет итоговый статус `paid` или `rejected`;
+* `notification-service` получает события из Kafka и сохраняет email-сообщения в своей БД. Фактическая отправка email по условию задания не выполняется.
 
-`users-protected-ingress` закрывает все пути `/api/v1/*`. Для этих запросов nginx-ingress сначала вызывает `/auth` через аннотацию `nginx.ingress.kubernetes.io/auth-url`.
+Каждый прикладной сервис запущен в двух репликах. Kafka-топик `notification.requested.v1` имеет две партиции. Обе реплики Notification Service входят в consumer group `notification-service-v1`, поэтому при штатной работе каждая читает одну партицию, а при отказе одной реплики оставшаяся получает обе партиции после rebalance.
 
-Если сессия валидна, `/auth` возвращает заголовки `X-Auth-UserId`, `X-Auth-User`, `X-Auth-Email` и `X-Auth-Roles`. nginx-ingress добавляет эти заголовки в исходный запрос и передает его в приложение.
+При создании заказа Order Service сначала сохраняет заказ со статусом `pending`, затем вызывает `POST /internal/v1/payments`. В качестве `operationId` используется `order:{orderId}`, поэтому повтор HTTP-запроса не приводит к повторному списанию. После ответа Billing Service заказ переводится в `paid` или `rejected`, а Order Service публикует `notification.requested.v1` с Kafka key, равным `orderId`.
 
-Методы профиля используют `X-Auth-UserId`, поэтому пользователь может читать и менять только свой профиль. Методы `/api/v1/users` дополнительно проверяют роль. Пользователь с ролью `admin` имеет полный доступ, а обычный `user` может читать и менять только запись со своим id.
+Notification Service фиксирует Kafka offset только после успешного сохранения сообщения. Доставка имеет семантику at-least-once, поэтому `eventId` используется как primary key, а повторная запись выполняется через `ON CONFLICT DO NOTHING`.
+
+Входящий трафик обслуживает nginx Ingress на домене `arch.homework`. Для защищенных маршрутов Ingress проверяет cookie `session_id` через `GET /auth` и передает сервисам доверенные заголовки `X-Auth-UserId`, `X-Auth-Email` и `X-Auth-Roles`.
+
+### Схема системы
 
 ![Architecture](./docs/architecture.svg)
 
-Mermaid source: [architecture.mmd](./docs/architecture.mmd)
+Исходник: [architecture.mmd](./docs/architecture.mmd).
+
+### Создание заказа: HTTP Billing + Kafka Notifications
+
+![Order sequence](./docs/sequence-http-kafka.svg)
+
+Исходник: [sequence-http-kafka.mmd](./docs/sequence-http-kafka.mmd).
+
+### IDL-контракты
+
+HTTP API описано в OpenAPI:
+
+* [User Service OpenAPI](./services/user-service/docs/swagger.yaml) — регистрация, авторизация и API пользователей;
+* [Order Service OpenAPI](./services/order-service/docs/swagger.yaml) — `POST /api/v1/orders` и чтение заказов;
+* [Billing Service OpenAPI](./services/billing-service/docs/swagger.yaml) — создание счета, пополнение, снятие и внутренний `POST /internal/v1/payments`;
+* [Notification Service OpenAPI](./services/notification-service/docs/swagger.yaml) — `GET /api/v1/notifications`.
+
+Асинхронный контракт описан в [AsyncAPI](./docs/asyncapi.yaml): топик `notification.requested.v1`, Kafka key `orderId`, producer `order-service`, consumer `notification-service`, consumer group `notification-service-v1`.
 
 
 ## Сборка и публикация
@@ -131,11 +155,11 @@ minikube start --cpus=6 --memory=8192
 ## Работа с helm
 1. Переходим в helm дирректорию:
 ```aiignore
-cd ./deployment/helm/
+cd ./deployment/helm/online-store
 ```
 2. Добавляем репозитории:
 ```aiignore
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 ```

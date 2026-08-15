@@ -1,0 +1,229 @@
+openapi: 3.0.3
+info:
+  title: Order Service
+  version: "1.0.0"
+  description: |
+    Creates and lists orders for the authenticated user. Monetary values are
+    represented as integer minor units. During creation the service synchronously
+    requests a payment from Billing and publishes a notification event to Kafka.
+servers:
+  - description: Local server
+    url: http://localhost:8002
+  - description: Kubernetes ingress
+    url: http://arch.homework
+tags:
+  - name: orders
+    description: Operations with the authenticated user's orders
+  - name: health
+    description: Kubernetes probes
+paths:
+  /api/v1/orders:
+    post:
+      tags: [orders]
+      summary: Create an order
+      description: |
+        Creates an order and attempts to debit its price from the current user's
+        billing account. Insufficient funds produce a rejected order, not an HTTP error.
+      operationId: createOrder
+      security:
+        - GatewayAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AuthEmail"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+            example:
+              price: 4000
+      responses:
+        "201":
+          description: Order was processed and stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        default:
+          $ref: "#/components/responses/UnexpectedError"
+    get:
+      tags: [orders]
+      summary: List current user's orders
+      operationId: listOrders
+      security:
+        - GatewayAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AuthEmail"
+      responses:
+        "200":
+          description: Orders ordered from newest to oldest
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        default:
+          $ref: "#/components/responses/UnexpectedError"
+  /api/v1/orders/{orderId}:
+    get:
+      tags: [orders]
+      summary: Get an order
+      operationId: getOrder
+      security:
+        - GatewayAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+        - $ref: "#/components/parameters/AuthEmail"
+      responses:
+        "200":
+          description: Order owned by the current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/UnexpectedError"
+  /livez:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      operationId: liveness
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness probe
+      operationId: readiness
+      responses:
+        "200":
+          description: Service and database are ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+components:
+  securitySchemes:
+    GatewayAuth:
+      type: apiKey
+      in: header
+      name: X-Auth-UserId
+      description: Trusted user id supplied by ingress after session validation.
+  parameters:
+    AuthEmail:
+      name: X-Auth-Email
+      in: header
+      required: true
+      description: Trusted user email supplied by ingress after session validation.
+      schema:
+        type: string
+        format: email
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required: [price]
+      properties:
+        price:
+          type: integer
+          format: int64
+          minimum: 1
+    Order:
+      type: object
+      required: [id, userId, email, price, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        price:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          type: string
+          enum: [pending, paid, rejected, failed]
+        failureReason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Authentication context is missing
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Order was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServiceUnavailable:
+      description: Service is not ready
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnexpectedError:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

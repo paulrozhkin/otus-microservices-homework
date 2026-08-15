@@ -1,0 +1,77 @@
+openapi: 3.0.3
+info:
+  title: Notification Service
+  version: 1.0.0
+  description: Stores email notifications produced while processing orders.
+servers:
+  - url: http://arch.homework
+paths:
+  /api/v1/notifications:
+    get:
+      summary: List notifications for the authenticated user
+      operationId: listNotifications
+      parameters:
+        - $ref: '#/components/parameters/AuthUserId'
+      responses:
+        '200':
+          description: Notifications ordered from newest to oldest
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  parameters:
+    AuthUserId:
+      name: X-Auth-UserId
+      in: header
+      required: true
+      schema:
+        type: integer
+        format: int64
+  schemas:
+    Notification:
+      type: object
+      required: [eventId, orderId, userId, email, orderStatus, subject, body, createdAt]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        userId:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        orderStatus:
+          type: string
+          enum: [paid, rejected]
+        subject:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+  responses:
+    Unauthorized:
+      description: Authentication context is missing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

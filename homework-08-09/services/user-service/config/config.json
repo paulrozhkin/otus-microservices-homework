@@ -1,0 +1,26 @@
+{
+  "app": {
+    "name": "user-service",
+    "env": "development"
+  },
+  "http": {
+    "addr": "0.0.0.0:8000",
+    "readTimeout": "5s",
+    "writeTimeout": "5s",
+    "idleTimeout": "60s",
+    "shutdownTimeout": "15s"
+  },
+  "db": {
+    "host": "localhost",
+    "port": 5433,
+    "user": "user_service",
+    "password": "user_service",
+    "dbName": "user_service",
+    "sslmode": "disable",
+    "timeZone": "UTC"
+  },
+  "billing": {
+    "baseURL": "http://localhost:8001",
+    "responseTimeout": "5s"
+  }
+}

@@ -1,0 +1,13 @@
+{{- if .Values.observability.grafanaAlerting.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "online-store.fullname" . }}-grafana-alerting
+  namespace: {{ .Values.observability.grafanaAlerting.namespace }}
+  labels:
+    {{ .Values.observability.grafanaAlerting.label }}: {{ .Values.observability.grafanaAlerting.labelValue | quote }}
+    {{- include "online-store.labels" (dict "root" . "component" "observability") | nindent 4 }}
+data:
+  online-store-alert-rules.yaml: |
+{{ .Files.Get "alerting/online-store-alert-rules.yaml" | indent 4 }}
+{{- end }}

@@ -1,0 +1,13 @@
+{{- if .Values.observability.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "online-store.fullname" . }}-grafana-dashboard
+  namespace: {{ .Values.observability.grafanaDashboard.namespace }}
+  labels:
+    {{ .Values.observability.grafanaDashboard.label }}: {{ .Values.observability.grafanaDashboard.labelValue | quote }}
+    {{- include "online-store.labels" (dict "root" . "component" "observability") | nindent 4 }}
+data:
+  online-store-dashboard.json: |
+{{ .Files.Get "dashboards/online-store-dashboard.json" | indent 4 }}
+{{- end }}

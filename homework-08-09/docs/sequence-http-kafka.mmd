@@ -1,0 +1,47 @@
+sequenceDiagram
+    autonumber
+    actor Client
+    participant Gateway as nginx Ingress
+    participant User as User Service
+    participant Order as Order Service
+    participant OrderDB as Order PostgreSQL
+    participant Billing as Billing Service
+    participant BillingDB as Billing PostgreSQL
+    participant Kafka
+    participant Notification as Notification Service
+    participant NotificationDB as Notification PostgreSQL
+
+    Client->>Gateway: POST /api/v1/orders {price}<br/>Cookie: session_id
+    Gateway->>User: GET /auth<br/>Cookie: session_id
+    User-->>Gateway: 200 + X-Auth-UserId + X-Auth-Email
+    Gateway->>Order: POST /api/v1/orders {price}<br/>X-Auth-UserId, X-Auth-Email
+    Order->>OrderDB: INSERT order(status=pending)
+    Order->>Billing: POST /internal/v1/payments<br/>{operationId: "order:{orderId}", userId, amount}
+    Billing->>BillingDB: Idempotent debit by operationId
+
+    alt Sufficient funds
+        BillingDB-->>Billing: Balance debited
+        Billing-->>Order: 200 payment succeeded
+        Order->>OrderDB: UPDATE status=paid
+        Order->>Kafka: publish notification.requested.v1<br/>key=orderId, orderStatus=paid
+        Order-->>Gateway: 201 Order(status=paid)
+    else Insufficient funds
+        BillingDB-->>Billing: Balance unchanged
+        Billing-->>Order: 409 insufficient funds
+        Order->>OrderDB: UPDATE status=rejected
+        Order->>Kafka: publish notification.requested.v1<br/>key=orderId, orderStatus=rejected
+        Order-->>Gateway: 201 Order(status=rejected)
+    end
+
+    Gateway-->>Client: 201 Order
+    Kafka-->>Notification: consume from notification-service-v1
+    Notification->>NotificationDB: INSERT notification<br/>ON CONFLICT(eventId) DO NOTHING
+    Notification->>Kafka: commit offset after successful persistence
+
+    Client->>Gateway: GET /api/v1/notifications
+    Gateway->>User: GET /auth
+    User-->>Gateway: 200 + X-Auth-UserId
+    Gateway->>Notification: GET /api/v1/notifications<br/>X-Auth-UserId
+    Notification->>NotificationDB: SELECT by userId
+    NotificationDB-->>Notification: stored messages
+    Notification-->>Client: 200 notifications[]

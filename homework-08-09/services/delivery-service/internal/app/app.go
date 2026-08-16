@@ -39,7 +39,7 @@ func New(cfg config.Config) (*App, error) {
 	outboxRepository := outbox.NewRepository(db)
 	repository := repositories.NewDeliveryRepository(db, outboxRepository)
 	handler := consumer.NewHandler(repository)
-	reader := platformkafka.NewConsumer(cfg.Kafka.BrokerList(), cfg.Kafka.Topic, cfg.Kafka.GroupID)
+	reader := platformkafka.NewConsumer(cfg.Kafka.BrokerList(), cfg.Kafka.Topic, cfg.Kafka.GroupID, logger)
 	router := httpdelivery.NewRouter(cfg, logger, platformdb.NewPostgresHealthChecker(db))
 	return &App{cfg: cfg, logger: logger, server: platformhttp.New(cfg.Http, router), consumer: reader, handler: handler.Handle, publisher: publisher, worker: outbox.NewWorker(outboxRepository, publisher, logger, cfg.Outbox.PollInterval)}, nil
 }

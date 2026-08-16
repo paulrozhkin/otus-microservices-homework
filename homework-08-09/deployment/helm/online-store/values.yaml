@@ -164,6 +164,12 @@ ingressNginx:
   enabled: true
 
 observability:
+  grafanaDatasource:
+    enabled: true
+    namespace: monitoring
+    label: grafana_datasource
+    labelValue: "1"
+    lokiUrl: http://loki-gateway.monitoring.svc.cluster.local
   grafanaDashboard:
     enabled: true
     namespace: monitoring

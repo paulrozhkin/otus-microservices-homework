@@ -1,0 +1,20 @@
+{{- if .Values.observability.grafanaDatasource.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "online-store.fullname" . }}-grafana-datasource
+  namespace: {{ .Values.observability.grafanaDatasource.namespace }}
+  labels:
+    {{ .Values.observability.grafanaDatasource.label }}: {{ .Values.observability.grafanaDatasource.labelValue | quote }}
+    {{- include "online-store.labels" (dict "root" . "component" "observability") | nindent 4 }}
+data:
+  loki-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: {{ .Values.observability.grafanaDatasource.lokiUrl | quote }}
+        editable: true
+{{- end }}

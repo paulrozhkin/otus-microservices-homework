@@ -3,6 +3,9 @@ Application host: http://{{ .Values.ingress.host }}
 Check workloads:
   kubectl get pods -n {{ .Release.Namespace }}
 
+Open Grafana and select Dashboards -> Online Store -> Online Store Logs.
+Use the X-Request-ID response header to find a failed HTTP request in Loki.
+
 {{- if .Values.kafka.ui.enabled }}
 Open Kafbat UI:
   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "online-store.componentName" (dict "root" . "component" "kafka-ui") }} 8080:{{ .Values.kafka.ui.port }}

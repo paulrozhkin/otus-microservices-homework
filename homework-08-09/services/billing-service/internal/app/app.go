@@ -39,7 +39,7 @@ func New(cfg config.Config) (*App, error) {
 	publisher := platformkafka.NewPublisher(cfg.Kafka.BrokerList())
 	outboxRepository := outbox.NewRepository(db)
 	billingRepository := repositories.NewBillingRepository(db, outboxRepository)
-	kafkaConsumer := platformkafka.NewConsumer(cfg.Kafka.BrokerList(), cfg.Kafka.Topic, cfg.Kafka.GroupID)
+	kafkaConsumer := platformkafka.NewConsumer(cfg.Kafka.BrokerList(), cfg.Kafka.Topic, cfg.Kafka.GroupID, logger)
 	paymentHandler := consumer.NewPaymentHandler(billingRepository)
 	router := httpserver.NewRouter(httpserver.RouterConfig{Config: cfg, Logger: logger, Repository: billingRepository, HealthChecker: platformdb.NewPostgresHealthChecker(db)})
 	return &App{

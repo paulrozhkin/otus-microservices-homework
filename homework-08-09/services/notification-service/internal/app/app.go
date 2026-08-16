@@ -35,7 +35,7 @@ func New(cfg config.Config) (*App, error) {
 	}
 	repository := repositories.NewNotificationRepository(db)
 	handler := eventsconsumer.NewNotificationHandler(repository)
-	kafkaConsumer := platformkafka.NewConsumer(cfg.Kafka.BrokerList(), cfg.Kafka.Topic, cfg.Kafka.GroupID)
+	kafkaConsumer := platformkafka.NewConsumer(cfg.Kafka.BrokerList(), cfg.Kafka.Topic, cfg.Kafka.GroupID, logger)
 	router := httpdelivery.NewRouter(httpdelivery.RouterConfig{
 		Config: cfg, Logger: logger, Repository: repository,
 		HealthChecker: platformdb.NewPostgresHealthChecker(db),

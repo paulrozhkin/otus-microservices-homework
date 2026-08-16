@@ -10,4 +10,6 @@ metadata:
 data:
   online-store-dashboard.json: |
 {{ .Files.Get "dashboards/online-store-dashboard.json" | indent 4 }}
+  online-store-logs-dashboard.json: |
+{{ .Files.Get "dashboards/online-store-logs-dashboard.json" | indent 4 }}
 {{- end }}

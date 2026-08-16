@@ -1,16 +1,18 @@
 # Online Store umbrella Helm chart
 
-1. Переходим в helm дирректорию:
+1. Переходим в директорию umbrella chart:
 ```aiignore
-cd ./deployment/helm/
+cd ./deployment/helm/online-store
 ```
 2. Добавляем репозитории:
 ```aiignore
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add grafana-community https://grafana-community.github.io/helm-charts
 helm repo update
 ```
-3. Устанавливаем мониторинг:
+3. Устанавливаем Prometheus и Grafana:
 ```aiignore
 helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack `
   -n monitoring `
@@ -24,13 +26,32 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --set grafana.sidecar.alerts.enabled=true `
   --set grafana.sidecar.alerts.label=grafana_alert `
   --set grafana.sidecar.alerts.searchNamespace=monitoring `
+  --set grafana.sidecar.datasources.enabled=true `
+  --set grafana.sidecar.datasources.label=grafana_datasource `
+  --set grafana.sidecar.datasources.searchNamespace=monitoring `
   --set prometheus.prometheusSpec.retention=2h `
   --set prometheus.prometheusSpec.resources.requests.memory=512Mi `
   --set prometheus.prometheusSpec.resources.limits.memory=1Gi `
   --set grafana.resources.requests.memory=128Mi `
   --set grafana.resources.limits.memory=512Mi
 ```
-4. Для доступа к стеку мониторинга следовать инструкциями из возврата предыдущей команды.
+4. Устанавливаем Loki в monolithic-режиме и Grafana Alloy для сбора логов pod-ов из namespace `online-store`:
+```aiignore
+helm upgrade --install loki grafana-community/loki `
+  -n monitoring `
+  --create-namespace `
+  -f ../observability/loki-values.yaml `
+  --wait
+
+helm upgrade --install alloy grafana/alloy `
+  -n monitoring `
+  -f ../observability/alloy-values.yaml `
+  --wait
+```
+
+Конфигурация рассчитана на локальный учебный кластер: одна реплика Loki, filesystem storage, PVC 5 GiB и retention 24 часа.
+
+5. Для доступа к стеку мониторинга следовать инструкциям из возврата команды установки Grafana.
    Нужно прокинуть доступ до Grafana через инструкции "Access Grafana local instance". Дубликат возврата:
 ```aiignore
 Get Grafana 'admin' user password by running:
@@ -49,7 +70,7 @@ Get your grafana admin user password by running:
 
 Visit https://github.com/prometheus-operator/kube-prometheus for instructions on how to create & configure Alertmanager and Prometheus instances using the Operator.
 ```
-5. Подтягиваем зависимости и устанавливаем chart:
+6. Подтягиваем зависимости и устанавливаем chart:
 ```aiignore
 helm dependency build .
   
@@ -60,17 +81,26 @@ helm upgrade --install online-store . `
   --wait-for-jobs
 ```
 
+После установки ConfigMap из Online Store chart автоматически добавит Loki datasource и dashboard `Online Store Logs` в Grafana. Для ручного поиска можно открыть `Explore → Loki`.
+
+Примеры LogQL:
+```text
+{namespace="online-store"} |~ "(?i)(error|failed|panic|500)"
+{namespace="online-store", service="order-service"} |= "request failed"
+{namespace="online-store"} |= "<X-Request-ID из ответа>"
+```
+
 Проверка ресурсов мониторинга:
 ```aiignore
 kubectl -n online-store get servicemonitors
 kubectl -n monitoring get configmap -l grafana_dashboard=1
 kubectl -n monitoring get configmap -l grafana_alert=1
 ```
-6. Если minikube запущен с driver=docker, то выполнить тунелирование:
+7. Если minikube запущен с driver=docker, то выполнить тунелирование:
 ```aiignore
 minikube tunnel
 ```
-7. Выполнить postman тест:
+8. Выполнить postman тест:
 ```aiignore
 newman run ./../../../tests/OTUS-homework-08-09.postman_collection.json `
   --reporters cli `

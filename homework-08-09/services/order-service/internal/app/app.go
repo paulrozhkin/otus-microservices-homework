@@ -42,7 +42,7 @@ func New(cfg config.Config) (*App, error) {
 	outboxRepository := outbox.NewRepository(db)
 	orderRepository := repositories.NewOrderRepository(db, outboxRepository)
 	orderService := service.NewOrderService(orderRepository)
-	kafkaConsumer := platformkafka.NewConsumer(cfg.Kafka.BrokerList(), cfg.Kafka.Topic, cfg.Kafka.GroupID)
+	kafkaConsumer := platformkafka.NewConsumer(cfg.Kafka.BrokerList(), cfg.Kafka.Topic, cfg.Kafka.GroupID, logger)
 	sagaEventHandler := consumer.NewSagaEventHandler(orderRepository)
 	router := httpdelivery.NewRouter(httpdelivery.RouterConfig{
 		Config: cfg, Logger: logger, OrderService: orderService,

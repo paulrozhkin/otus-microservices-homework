@@ -29,6 +29,7 @@ paths:
         - GatewayAuth: []
       parameters:
         - $ref: "#/components/parameters/AuthEmail"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -51,6 +52,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
         default:
           $ref: "#/components/responses/UnexpectedError"
     get:
@@ -139,6 +142,17 @@ components:
       schema:
         type: string
         format: email
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Identifies one create-order request for the current user. Reusing the key
+        with the same payload returns the existing order; another payload returns 409.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
     OrderId:
       name: orderId
       in: path
@@ -232,6 +246,12 @@ components:
             $ref: "#/components/schemas/Error"
     NotFound:
       description: Order was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    IdempotencyConflict:
+      description: Idempotency-Key was already used with another request payload
       content:
         application/json:
           schema:

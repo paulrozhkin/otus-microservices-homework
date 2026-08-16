@@ -8,20 +8,28 @@ import (
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/contracts"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/outbox"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/entity"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/repositories"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeOrderRepository struct {
-	order   *entity.Order
-	message *outbox.Message
+	order       *entity.Order
+	message     *outbox.Message
+	idempotency repositories.IdempotencyRequest
 }
 
-func (f *fakeOrderRepository) Create(_ context.Context, order *entity.Order, message *outbox.Message) error {
+func (f *fakeOrderRepository) CreateIdempotent(
+	_ context.Context,
+	order *entity.Order,
+	message *outbox.Message,
+	idempotency repositories.IdempotencyRequest,
+) (*entity.Order, error) {
 	orderCopy := *order
 	messageCopy := *message
 	f.order = &orderCopy
 	f.message = &messageCopy
-	return nil
+	f.idempotency = idempotency
+	return &orderCopy, nil
 }
 
 func (f *fakeOrderRepository) Update(_ context.Context, order *entity.Order) error {
@@ -41,7 +49,8 @@ func (f *fakeOrderRepository) List(context.Context, int64) ([]*entity.Order, err
 func TestCreateOrderEnqueuesChargePayment(t *testing.T) {
 	repository := &fakeOrderRepository{}
 	order, err := NewOrderService(repository).Create(context.Background(), CreateOrder{
-		UserID: 42, Email: "user@example.com", Price: 10000,
+		IdempotencyKey: "create-order-1",
+		UserID:         42, Email: "user@example.com", Price: 10000,
 		ProductID: "product-1", CourierID: "courier-1", DeliverySlot: "slot-1",
 	})
 
@@ -51,6 +60,9 @@ func TestCreateOrderEnqueuesChargePayment(t *testing.T) {
 	require.Equal(t, contracts.TopicBillingCommands, repository.message.Topic)
 	require.Equal(t, order.ID, repository.message.MessageKey)
 	require.Equal(t, contracts.MessageChargePaymentRequested, repository.message.MessageType)
+	require.Equal(t, "create-order-1", repository.idempotency.Key)
+	require.Equal(t, int64(42), repository.idempotency.UserID)
+	require.Len(t, repository.idempotency.RequestHash, 64)
 
 	var envelope contracts.Envelope
 	require.NoError(t, json.Unmarshal([]byte(repository.message.Payload), &envelope))
@@ -71,9 +83,10 @@ func TestCreateOrderValidatesSagaResources(t *testing.T) {
 		name  string
 		input CreateOrder
 	}{
-		{name: "product", input: CreateOrder{UserID: 42, Email: "u@example.com", Price: 100, CourierID: "courier", DeliverySlot: "slot"}},
-		{name: "courier", input: CreateOrder{UserID: 42, Email: "u@example.com", Price: 100, ProductID: "product", DeliverySlot: "slot"}},
-		{name: "slot", input: CreateOrder{UserID: 42, Email: "u@example.com", Price: 100, ProductID: "product", CourierID: "courier"}},
+		{name: "idempotency key", input: CreateOrder{UserID: 42, Email: "u@example.com", Price: 100, ProductID: "product", CourierID: "courier", DeliverySlot: "slot"}},
+		{name: "product", input: CreateOrder{IdempotencyKey: "key", UserID: 42, Email: "u@example.com", Price: 100, CourierID: "courier", DeliverySlot: "slot"}},
+		{name: "courier", input: CreateOrder{IdempotencyKey: "key", UserID: 42, Email: "u@example.com", Price: 100, ProductID: "product", DeliverySlot: "slot"}},
+		{name: "slot", input: CreateOrder{IdempotencyKey: "key", UserID: 42, Email: "u@example.com", Price: 100, ProductID: "product", CourierID: "courier"}},
 	}
 
 	for _, tt := range tests {
@@ -82,4 +95,26 @@ func TestCreateOrderValidatesSagaResources(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestCreateOrderHashOnlyDependsOnRequestPayload(t *testing.T) {
+	first := CreateOrder{
+		IdempotencyKey: "first-key", UserID: 42, Email: "first@example.com", Price: 100,
+		ProductID: "product", CourierID: "courier", DeliverySlot: "slot",
+	}
+	second := first
+	second.IdempotencyKey = "second-key"
+	second.Email = "second@example.com"
+	second.UserID = 100
+
+	firstHash, err := createOrderHash(first)
+	require.NoError(t, err)
+	secondHash, err := createOrderHash(second)
+	require.NoError(t, err)
+	require.Equal(t, firstHash, secondHash)
+
+	second.Price++
+	changedHash, err := createOrderHash(second)
+	require.NoError(t, err)
+	require.NotEqual(t, firstHash, changedHash)
 }

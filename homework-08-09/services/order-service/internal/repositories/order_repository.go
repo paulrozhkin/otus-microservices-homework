@@ -28,8 +28,22 @@ type Order struct {
 	UpdatedAt     time.Time
 }
 
+type IdempotencyKey struct {
+	UserID      int64  `gorm:"primaryKey;autoIncrement:false"`
+	Key         string `gorm:"primaryKey;size:255"`
+	RequestHash string `gorm:"not null;size:64"`
+	OrderID     string `gorm:"not null;size:36;index"`
+	CreatedAt   time.Time
+}
+
+type IdempotencyRequest struct {
+	UserID      int64
+	Key         string
+	RequestHash string
+}
+
 type OrderRepository interface {
-	Create(context.Context, *entity.Order, *outbox.Message) error
+	CreateIdempotent(context.Context, *entity.Order, *outbox.Message, IdempotencyRequest) (*entity.Order, error)
 	Update(context.Context, *entity.Order) error
 	Get(context.Context, string, int64) (*entity.Order, error)
 	List(context.Context, int64) ([]*entity.Order, error)
@@ -177,8 +191,38 @@ func newCommandMessage(topic, messageType string, order *Order, causationID stri
 	}, nil
 }
 
-func (r *OrderRepositoryImpl) Create(ctx context.Context, order *entity.Order, message *outbox.Message) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+func (r *OrderRepositoryImpl) CreateIdempotent(
+	ctx context.Context,
+	order *entity.Order,
+	message *outbox.Message,
+	request IdempotencyRequest,
+) (*entity.Order, error) {
+	var result *entity.Order
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		idempotencyKey := &IdempotencyKey{
+			UserID: request.UserID, Key: request.Key, RequestHash: request.RequestHash, OrderID: order.ID,
+		}
+		insert := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(idempotencyKey)
+		if insert.Error != nil {
+			return insert.Error
+		}
+		if insert.RowsAffected == 0 {
+			existingKey := &IdempotencyKey{}
+			if err := tx.First(existingKey, "user_id = ? AND key = ?", request.UserID, request.Key).Error; err != nil {
+				return err
+			}
+			if existingKey.RequestHash != request.RequestHash {
+				return fmt.Errorf("%w: Idempotency-Key was already used with another payload", apperror.ErrAlreadyExists)
+			}
+
+			existingOrder := &Order{}
+			if err := tx.First(existingOrder, "id = ? AND user_id = ?", existingKey.OrderID, request.UserID).Error; err != nil {
+				return err
+			}
+			result = orderFromDAO(existingOrder)
+			return nil
+		}
+
 		dao := orderToDAO(order)
 		if err := tx.Create(dao).Error; err != nil {
 			return err
@@ -187,8 +231,10 @@ func (r *OrderRepositoryImpl) Create(ctx context.Context, order *entity.Order, m
 			return err
 		}
 		copyOrder(order, dao)
+		result = order
 		return nil
 	})
+	return result, err
 }
 
 func (r *OrderRepositoryImpl) Update(ctx context.Context, order *entity.Order) error {

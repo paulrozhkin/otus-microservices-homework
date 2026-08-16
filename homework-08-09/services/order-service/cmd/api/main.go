@@ -48,5 +48,5 @@ func migrate(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	return db.AutoMigrate(&repositories.Order{}, &outbox.Message{})
+	return db.AutoMigrate(&repositories.Order{}, &repositories.IdempotencyKey{}, &outbox.Message{})
 }

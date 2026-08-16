@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	authUserIDHeader = "X-Auth-UserId"
-	authEmailHeader  = "X-Auth-Email"
+	authUserIDHeader  = "X-Auth-UserId"
+	authEmailHeader   = "X-Auth-Email"
+	idempotencyHeader = "Idempotency-Key"
 )
 
 type OrderHandler struct{ service *service.OrderService }
@@ -38,7 +39,8 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		return
 	}
 	order, err := h.service.Create(c, service.CreateOrder{
-		UserID: userID, Email: email, Price: request.Price,
+		IdempotencyKey: c.GetHeader(idempotencyHeader),
+		UserID:         userID, Email: email, Price: request.Price,
 		ProductID: request.ProductID, CourierID: request.CourierID, DeliverySlot: request.DeliverySlot,
 	})
 	if err != nil {

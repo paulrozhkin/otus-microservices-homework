@@ -72,5 +72,8 @@ minikube tunnel
 ```
 7. Выполнить postman тест:
 ```aiignore
-newman run ./../../../tests/OTUS-homework-08-09.postman_collection.json --reporters cli --verbose
+newman run ./../../../tests/OTUS-homework-08-09.postman_collection.json `
+  --reporters cli `
+  --verbose `
+  --bail
 ```

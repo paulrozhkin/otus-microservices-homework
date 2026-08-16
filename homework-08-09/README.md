@@ -257,9 +257,12 @@ helm dependency build .
 helm upgrade --install online-store . `
   -n online-store `
   --create-namespace `
+  --timeout 15m `
   --wait `
   --wait-for-jobs
 ```
+
+При старте API и migration jobs повторяют подключение к PostgreSQL до истечения `database.startupTimeout` (по умолчанию в Helm `60s`) с интервалом `database.retryInterval` (`1s`). Параметры передаются в сервисы как `<SERVICE_PREFIX>_DB_STARTUP_TIMEOUT` и `<SERVICE_PREFIX>_DB_RETRY_INTERVAL`. `startupProbe` даёт приложению до 90 секунд на запуск и не позволяет liveness probe перезапустить контейнер во время ожидания БД.
 
 Проверка ресурсов мониторинга:
 ```aiignore

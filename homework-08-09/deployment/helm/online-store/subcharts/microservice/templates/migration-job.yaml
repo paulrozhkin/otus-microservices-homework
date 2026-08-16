@@ -43,4 +43,8 @@ spec:
               value: {{ .Values.database.database | quote }}
             - name: {{ .Values.envPrefix }}_DB_SSLMODE
               value: disable
+            - name: {{ .Values.envPrefix }}_DB_STARTUP_TIMEOUT
+              value: {{ .Values.database.startupTimeout | quote }}
+            - name: {{ .Values.envPrefix }}_DB_RETRY_INTERVAL
+              value: {{ .Values.database.retryInterval | quote }}
 {{- end }}

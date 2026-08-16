@@ -24,6 +24,8 @@ serviceMonitor:
   annotations: {}
 
 database:
+  startupTimeout: 60s
+  retryInterval: 1s
   image:
     repository: postgres
     tag: "16"
@@ -42,6 +44,10 @@ migration:
 
 extraEnv: {}
 resources: {}
+probes:
+  startup:
+    periodSeconds: 5
+    failureThreshold: 18
 nodeSelector: {}
 tolerations: []
 affinity: {}

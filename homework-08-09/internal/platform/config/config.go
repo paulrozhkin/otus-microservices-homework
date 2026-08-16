@@ -35,13 +35,15 @@ type HttpConfig struct {
 
 // DBConfig contains connection settings shared by all services.
 type DBConfig struct {
-	Host     string       `mapstructure:"host" validate:"required,hostname"`
-	Port     int          `mapstructure:"port"`
-	User     SecretString `mapstructure:"user" validate:"required"`
-	Password SecretString `mapstructure:"password" validate:"required"`
-	DBName   string       `mapstructure:"dbName" validate:"required"`
-	SSLMode  string       `mapstructure:"sslmode" validate:"oneof=disable enable"`
-	TimeZone string       `mapstructure:"timeZone"`
+	Host           string        `mapstructure:"host" validate:"required,hostname"`
+	Port           int           `mapstructure:"port"`
+	User           SecretString  `mapstructure:"user" validate:"required"`
+	Password       SecretString  `mapstructure:"password" validate:"required"`
+	DBName         string        `mapstructure:"dbName" validate:"required"`
+	SSLMode        string        `mapstructure:"sslmode" validate:"oneof=disable enable"`
+	TimeZone       string        `mapstructure:"timeZone"`
+	StartupTimeout time.Duration `mapstructure:"startupTimeout" validate:"gt=0"`
+	RetryInterval  time.Duration `mapstructure:"retryInterval" validate:"gt=0"`
 }
 
 type SecretString string

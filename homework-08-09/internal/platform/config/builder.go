@@ -109,6 +109,8 @@ func (b *Builder[T]) setDefaults(v *viper.Viper) {
 	v.SetDefault("db.port", 5432)
 	v.SetDefault("db.sslmode", "disable")
 	v.SetDefault("db.timeZone", "UTC")
+	v.SetDefault("db.startupTimeout", 30*time.Second)
+	v.SetDefault("db.retryInterval", time.Second)
 
 	if b.defaultValues != nil {
 		for key, value := range b.defaultValues {
@@ -140,6 +142,8 @@ func (b *Builder[T]) bindEnvs(v *viper.Viper) error {
 		"db.dbName":            b.addPrefixToEnv("DB_DBNAME"),
 		"db.sslmode":           b.addPrefixToEnv("DB_SSLMODE"),
 		"db.timeZone":          b.addPrefixToEnv("DB_TIMEZONE"),
+		"db.startupTimeout":    b.addPrefixToEnv("DB_STARTUP_TIMEOUT"),
+		"db.retryInterval":     b.addPrefixToEnv("DB_RETRY_INTERVAL"),
 	}
 
 	if b.bindEnv != nil {

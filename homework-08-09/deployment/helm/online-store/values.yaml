@@ -56,6 +56,8 @@ order-service:
     database: order_service
   extraEnv:
     OTUS_ORDER_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_ORDER_SERVICE_KAFKA_TOPIC: order.saga.events.v1
+    OTUS_ORDER_SERVICE_KAFKA_GROUP_ID: order-service-saga-v1
     OTUS_ORDER_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
 
 notification-service:

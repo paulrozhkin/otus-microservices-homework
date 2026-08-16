@@ -260,6 +260,8 @@ services:
       OTUS_ORDER_SERVICE_DB_SSLMODE: disable
       OTUS_ORDER_SERVICE_BILLING_BASE_URL: http://billing-service:8001
       OTUS_ORDER_SERVICE_KAFKA_BROKERS: kafka:29092
+      OTUS_ORDER_SERVICE_KAFKA_TOPIC: order.saga.events.v1
+      OTUS_ORDER_SERVICE_KAFKA_GROUP_ID: order-service-saga-v1
     depends_on:
       order-postgres:
         condition: service_healthy

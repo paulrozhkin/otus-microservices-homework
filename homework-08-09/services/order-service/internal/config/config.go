@@ -5,6 +5,7 @@ import (
 	"time"
 
 	platformconfig "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/config"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/contracts"
 )
 
 type Config struct {
@@ -15,6 +16,8 @@ type Config struct {
 
 type KafkaConfig struct {
 	Brokers string `mapstructure:"brokers" validate:"required"`
+	Topic   string `mapstructure:"topic" validate:"required"`
+	GroupID string `mapstructure:"groupId" validate:"required"`
 }
 
 type OutboxConfig struct {
@@ -39,11 +42,15 @@ func Load() (Config, error) {
 		WithEnvPrefix("OTUS_ORDER_SERVICE").
 		WithBindEnv(map[string]string{
 			"kafka.brokers":       "KAFKA_BROKERS",
+			"kafka.topic":         "KAFKA_TOPIC",
+			"kafka.groupId":       "KAFKA_GROUP_ID",
 			"outbox.pollInterval": "OUTBOX_POLL_INTERVAL",
 		}).
 		WithDefaultValues(map[string]any{
 			"http.addr":           ":8002",
 			"kafka.brokers":       "kafka:29092",
+			"kafka.topic":         contracts.TopicOrderSagaEvents,
+			"kafka.groupId":       "order-service-saga-v1",
 			"outbox.pollInterval": 500 * time.Millisecond,
 		}).Load()
 	if err != nil {

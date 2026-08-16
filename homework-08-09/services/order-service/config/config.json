@@ -20,7 +20,9 @@
     "timeZone": "UTC"
   },
   "kafka": {
-    "brokers": "localhost:9092"
+    "brokers": "localhost:9092",
+    "topic": "order.saga.events.v1",
+    "groupId": "order-service-saga-v1"
   },
   "outbox": {
     "pollInterval": "500ms"

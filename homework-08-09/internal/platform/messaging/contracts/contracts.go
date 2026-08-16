@@ -32,6 +32,8 @@ const (
 	MessageReserveDeliveryRequested  = "delivery.slot.reserve.requested.v1"
 	MessageDeliveryReserved          = "delivery.slot.reserved.v1"
 	MessageDeliveryReservationFailed = "delivery.slot.reservation-failed.v1"
+
+	MessageNotificationRequested = "notification.requested.v1"
 )
 
 type Envelope struct {
@@ -112,4 +114,13 @@ type OperationSucceeded struct {
 type OperationFailed struct {
 	OrderID string `json:"orderId"`
 	Reason  string `json:"reason"`
+}
+
+type SendNotification struct {
+	OrderID     string `json:"orderId"`
+	UserID      int64  `json:"userId"`
+	Email       string `json:"email"`
+	OrderStatus string `json:"orderStatus"`
+	Subject     string `json:"subject"`
+	Body        string `json:"body"`
 }

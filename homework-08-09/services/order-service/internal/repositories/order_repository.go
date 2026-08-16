@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/apperror"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/contracts"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/outbox"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/entity"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Order struct {
@@ -38,8 +40,141 @@ type OrderRepositoryImpl struct {
 	outbox *outbox.Repository
 }
 
-func NewOrderRepository(db *gorm.DB, outboxRepository *outbox.Repository) OrderRepository {
+func NewOrderRepository(db *gorm.DB, outboxRepository *outbox.Repository) *OrderRepositoryImpl {
 	return &OrderRepositoryImpl{db: db, outbox: outboxRepository}
+}
+
+func (r *OrderRepositoryImpl) ApplyPaymentSucceeded(ctx context.Context, orderID, causationID string) error {
+	clearReason := ""
+	return r.applyTransition(ctx, orderID, entity.StatusPaymentPending, entity.StatusInventoryPending, &clearReason,
+		func(order *Order) (*outbox.Message, error) { return newReserveInventoryMessage(order, causationID) })
+}
+
+func newReserveInventoryMessage(order *Order, causationID string) (*outbox.Message, error) {
+	return newCommandMessage(contracts.TopicWarehouseCommands, contracts.MessageReserveInventoryRequested, order, causationID,
+		contracts.ReserveInventory{OrderID: order.ID, ProductID: order.ProductID})
+}
+
+func (r *OrderRepositoryImpl) ApplyPaymentFailed(ctx context.Context, orderID, reason string) error {
+	if reason == "" {
+		reason = "payment failed"
+	}
+	return r.applyTransition(ctx, orderID, entity.StatusPaymentPending, entity.StatusFailed, &reason, nil)
+}
+
+func (r *OrderRepositoryImpl) ApplyInventoryReserved(ctx context.Context, orderID, causationID string) error {
+	return r.applyTransition(ctx, orderID, entity.StatusInventoryPending, entity.StatusDeliveryPending, nil,
+		func(order *Order) (*outbox.Message, error) { return newReserveDeliveryMessage(order, causationID) })
+}
+
+func (r *OrderRepositoryImpl) ApplyInventoryReservationFailed(ctx context.Context, orderID, reason, causationID string) error {
+	return r.applyTransition(ctx, orderID, entity.StatusInventoryPending, entity.StatusPaymentRefunding, &reason,
+		func(order *Order) (*outbox.Message, error) { return newRefundPaymentMessage(order, causationID) })
+}
+
+func (r *OrderRepositoryImpl) ApplyDeliveryReserved(ctx context.Context, orderID, causationID string) error {
+	return r.applyTransition(ctx, orderID, entity.StatusDeliveryPending, entity.StatusCompleted, nil,
+		func(order *Order) (*outbox.Message, error) { return newNotificationMessage(order, causationID) })
+}
+
+func (r *OrderRepositoryImpl) ApplyDeliveryReservationFailed(ctx context.Context, orderID, reason, causationID string) error {
+	return r.applyTransition(ctx, orderID, entity.StatusDeliveryPending, entity.StatusInventoryReleasing, &reason,
+		func(order *Order) (*outbox.Message, error) { return newReleaseInventoryMessage(order, causationID) })
+}
+
+func (r *OrderRepositoryImpl) ApplyInventoryReleased(ctx context.Context, orderID, causationID string) error {
+	return r.applyTransition(ctx, orderID, entity.StatusInventoryReleasing, entity.StatusPaymentRefunding, nil,
+		func(order *Order) (*outbox.Message, error) { return newRefundPaymentMessage(order, causationID) })
+}
+
+func (r *OrderRepositoryImpl) ApplyPaymentRefunded(ctx context.Context, orderID string) error {
+	return r.applyTransition(ctx, orderID, entity.StatusPaymentRefunding, entity.StatusFailed, nil, nil)
+}
+
+type transitionMessageBuilder func(*Order) (*outbox.Message, error)
+
+func (r *OrderRepositoryImpl) applyTransition(
+	ctx context.Context,
+	orderID string,
+	expectedStatus, targetStatus entity.Status,
+	failureReason *string,
+	buildMessage transitionMessageBuilder,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		order := &Order{}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(order, "id = ?", orderID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("%w: order %s", apperror.ErrNotFound, orderID)
+			}
+			return err
+		}
+		if entity.Status(order.Status) != expectedStatus {
+			return nil
+		}
+
+		var message *outbox.Message
+		var err error
+		if buildMessage != nil {
+			message, err = buildMessage(order)
+			if err != nil {
+				return err
+			}
+		}
+
+		updates := map[string]any{"status": string(targetStatus)}
+		if failureReason != nil {
+			updates["failure_reason"] = *failureReason
+		}
+		if err = tx.Model(&Order{}).Where("id = ?", order.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if message != nil {
+			return r.outbox.Enqueue(ctx, tx, message)
+		}
+		return nil
+	})
+}
+
+func newReserveDeliveryMessage(order *Order, causationID string) (*outbox.Message, error) {
+	return newCommandMessage(contracts.TopicDeliveryCommands, contracts.MessageReserveDeliveryRequested, order, causationID,
+		contracts.ReserveDelivery{OrderID: order.ID, CourierID: order.CourierID, DeliverySlot: order.DeliverySlot})
+}
+
+func newReleaseInventoryMessage(order *Order, causationID string) (*outbox.Message, error) {
+	return newCommandMessage(contracts.TopicWarehouseCommands, contracts.MessageReleaseInventoryRequested, order, causationID,
+		contracts.ReleaseInventory{OrderID: order.ID, ProductID: order.ProductID})
+}
+
+func newRefundPaymentMessage(order *Order, causationID string) (*outbox.Message, error) {
+	return newCommandMessage(contracts.TopicBillingCommands, contracts.MessageRefundPaymentRequested, order, causationID,
+		contracts.RefundPayment{
+			OrderID: order.ID, OperationID: "order:" + order.ID + ":payment:refund",
+			OriginalOperationID: "order:" + order.ID + ":payment",
+		})
+}
+
+func newNotificationMessage(order *Order, causationID string) (*outbox.Message, error) {
+	return newCommandMessage(contracts.TopicNotificationCommands, contracts.MessageNotificationRequested, order, causationID,
+		contracts.SendNotification{
+			OrderID: order.ID, UserID: order.UserID, Email: order.Email,
+			OrderStatus: string(entity.StatusCompleted), Subject: "Order completed",
+			Body: fmt.Sprintf("Order %s has been completed", order.ID),
+		})
+}
+
+func newCommandMessage(topic, messageType string, order *Order, causationID string, command any) (*outbox.Message, error) {
+	envelope, err := contracts.NewEnvelope(messageType, order.ID, causationID, command)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := envelope.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	return &outbox.Message{
+		ID: envelope.MessageID, Topic: topic, MessageKey: order.ID,
+		MessageType: envelope.MessageType, Payload: string(payload),
+	}, nil
 }
 
 func (r *OrderRepositoryImpl) Create(ctx context.Context, order *entity.Order, message *outbox.Message) error {

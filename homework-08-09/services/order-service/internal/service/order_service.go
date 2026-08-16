@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/contracts"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/outbox"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/entity"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/metrics"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/repositories"
 )
 
@@ -88,9 +90,24 @@ func (s *OrderService) Create(ctx context.Context, input CreateOrder) (*entity.O
 	if err != nil {
 		return nil, err
 	}
-	return s.repository.CreateIdempotent(ctx, order, message, repositories.IdempotencyRequest{
+	result, err := s.repository.CreateIdempotent(ctx, order, message, repositories.IdempotencyRequest{
 		UserID: input.UserID, Key: input.IdempotencyKey, RequestHash: requestHash,
 	})
+	if err != nil {
+		if errors.Is(err, apperror.ErrAlreadyExists) {
+			businessmetrics.IdempotencyRequest("conflict")
+		} else {
+			businessmetrics.IdempotencyRequest("failed")
+		}
+		return nil, err
+	}
+	if result.ID == order.ID {
+		businessmetrics.IdempotencyRequest("created")
+		businessmetrics.OrderStarted()
+	} else {
+		businessmetrics.IdempotencyRequest("replayed")
+	}
+	return result, nil
 }
 
 func createOrderHash(input CreateOrder) (string, error) {

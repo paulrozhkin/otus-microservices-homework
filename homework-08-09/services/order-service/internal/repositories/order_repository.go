@@ -10,6 +10,7 @@ import (
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/contracts"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/outbox"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/entity"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/metrics"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -114,7 +115,8 @@ func (r *OrderRepositoryImpl) applyTransition(
 	failureReason *string,
 	buildMessage transitionMessageBuilder,
 ) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var transitioned *Order
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		order := &Order{}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(order, "id = ?", orderID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -143,10 +145,17 @@ func (r *OrderRepositoryImpl) applyTransition(
 			return err
 		}
 		if message != nil {
-			return r.outbox.Enqueue(ctx, tx, message)
+			if err = r.outbox.Enqueue(ctx, tx, message); err != nil {
+				return err
+			}
 		}
+		transitioned = order
 		return nil
 	})
+	if err == nil && transitioned != nil {
+		businessmetrics.SagaTransition(string(expectedStatus), string(targetStatus), transitioned.CreatedAt, transitioned.Price)
+	}
+	return err
 }
 
 func newReserveDeliveryMessage(order *Order, causationID string) (*outbox.Message, error) {

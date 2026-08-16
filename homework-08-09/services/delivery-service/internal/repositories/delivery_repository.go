@@ -8,6 +8,7 @@ import (
 
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/contracts"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/outbox"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/delivery-service/internal/metrics"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -44,7 +45,8 @@ func NewDeliveryRepository(db *gorm.DB, outboxRepository *outbox.Repository) *De
 	return &DeliveryRepository{db: db, outbox: outboxRepository}
 }
 func (r *DeliveryRepository) Reserve(ctx context.Context, command contracts.ReserveDelivery, succeeded, failed *outbox.Message) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	resultStatus := ""
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		existing := &Operation{}
 		if err := tx.First(existing, "id = ?", command.OperationID).Error; err == nil {
 			if existing.OrderID != command.OrderID || existing.CourierID != command.CourierID || existing.DeliverySlot != command.DeliverySlot {
@@ -66,6 +68,14 @@ func (r *DeliveryRepository) Reserve(ctx context.Context, command contracts.Rese
 		if err := tx.Create(&Operation{ID: command.OperationID, OrderID: command.OrderID, CourierID: command.CourierID, DeliverySlot: command.DeliverySlot, Status: status, Reason: reason}).Error; err != nil {
 			return err
 		}
-		return r.outbox.Enqueue(ctx, tx, message)
+		if err := r.outbox.Enqueue(ctx, tx, message); err != nil {
+			return err
+		}
+		resultStatus = status
+		return nil
 	})
+	if err == nil && resultStatus != "" {
+		businessmetrics.Reservation(resultStatus)
+	}
+	return err
 }

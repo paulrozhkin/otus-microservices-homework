@@ -9,6 +9,7 @@ import (
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/apperror"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/outbox"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/billing-service/internal/entity"
+	businessmetrics "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/billing-service/internal/metrics"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -150,7 +151,8 @@ func (r *BillingRepositoryImpl) ProcessPayment(ctx context.Context, operationID 
 		return errors.New("payment result outbox messages are required")
 	}
 
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	resultStatus := ""
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		existing := &Operation{}
 		if err := tx.First(existing, "id = ?", operationID).Error; err == nil {
 			if existing.UserID != userID || existing.Amount != amount || existing.Type != entity.OperationPayment {
@@ -182,8 +184,16 @@ func (r *BillingRepositoryImpl) ProcessPayment(ctx context.Context, operationID 
 		if err = tx.Create(&Operation{ID: operationID, UserID: userID, Type: entity.OperationPayment, Amount: amount, Status: status}).Error; err != nil {
 			return err
 		}
-		return r.outbox.Enqueue(ctx, tx, message)
+		if err = r.outbox.Enqueue(ctx, tx, message); err != nil {
+			return err
+		}
+		resultStatus = status
+		return nil
 	})
+	if err == nil && resultStatus != "" {
+		businessmetrics.BillingOperation(entity.OperationPayment, resultStatus)
+	}
+	return err
 }
 
 // ProcessRefund atomically credits a previously successful payment and emits
@@ -195,7 +205,8 @@ func (r *BillingRepositoryImpl) ProcessRefund(ctx context.Context, operationID, 
 	if refunded == nil {
 		return errors.New("refund result outbox message is required")
 	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	committed := false
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		existing := &Operation{}
 		if err := tx.First(existing, "id = ?", operationID).Error; err == nil {
 			if existing.Type != entity.OperationRefund || existing.ReferenceID != originalOperationID {
@@ -231,8 +242,16 @@ func (r *BillingRepositoryImpl) ProcessRefund(ctx context.Context, operationID, 
 		if err := tx.Create(&Operation{ID: operationID, UserID: original.UserID, Type: entity.OperationRefund, Amount: original.Amount, Status: OperationStatusSucceeded, ReferenceID: originalOperationID}).Error; err != nil {
 			return err
 		}
-		return r.outbox.Enqueue(ctx, tx, refunded)
+		if err := r.outbox.Enqueue(ctx, tx, refunded); err != nil {
+			return err
+		}
+		committed = true
+		return nil
 	})
+	if err == nil && committed {
+		businessmetrics.BillingOperation(entity.OperationRefund, OperationStatusSucceeded)
+	}
+	return err
 }
 
 func (r *BillingRepositoryImpl) Refund(ctx context.Context, originalOperationID string) (*entity.Account, error) {

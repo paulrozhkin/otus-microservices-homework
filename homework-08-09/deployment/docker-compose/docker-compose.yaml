@@ -306,6 +306,72 @@ services:
     networks:
       - backend
 
+  delivery-postgres:
+    image: postgres:16
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_DB: delivery_service
+      POSTGRES_USER: delivery_service
+      POSTGRES_PASSWORD: delivery_service
+    volumes:
+      - delivery-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U delivery_service -d delivery_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  delivery-migrate:
+    build:
+      context: ../..
+      dockerfile: services/delivery-service/Dockerfile
+    command: ["migrate"]
+    environment:
+      OTUS_DELIVERY_SERVICE_DB_HOST: delivery-postgres
+      OTUS_DELIVERY_SERVICE_DB_PORT: 5432
+      OTUS_DELIVERY_SERVICE_DB_USER: delivery_service
+      OTUS_DELIVERY_SERVICE_DB_PASSWORD: delivery_service
+      OTUS_DELIVERY_SERVICE_DB_DBNAME: delivery_service
+      OTUS_DELIVERY_SERVICE_DB_SSLMODE: disable
+    depends_on:
+      delivery-postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  delivery-service:
+    build:
+      context: ../..
+      dockerfile: services/delivery-service/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      OTUS_DELIVERY_SERVICE_APP_NAME: delivery-service
+      OTUS_DELIVERY_SERVICE_APP_ENV: development
+      OTUS_DELIVERY_SERVICE_HTTP_ADDR: 0.0.0.0:8005
+      OTUS_DELIVERY_SERVICE_DB_HOST: delivery-postgres
+      OTUS_DELIVERY_SERVICE_DB_PORT: 5432
+      OTUS_DELIVERY_SERVICE_DB_USER: delivery_service
+      OTUS_DELIVERY_SERVICE_DB_PASSWORD: delivery_service
+      OTUS_DELIVERY_SERVICE_DB_DBNAME: delivery_service
+      OTUS_DELIVERY_SERVICE_DB_SSLMODE: disable
+      OTUS_DELIVERY_SERVICE_KAFKA_BROKERS: kafka:29092
+      OTUS_DELIVERY_SERVICE_KAFKA_TOPIC: delivery.commands.v1
+      OTUS_DELIVERY_SERVICE_KAFKA_GROUP_ID: delivery-service-v1
+      OTUS_DELIVERY_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
+    depends_on:
+      delivery-migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - monitoring
+      - backend
+
   order-service:
     build:
       context: ../..
@@ -471,5 +537,6 @@ volumes:
   order-postgres-data:
   notification-postgres-data:
   warehouse-postgres-data:
+  delivery-postgres-data:
   prometheus_data:
   grafana-data:

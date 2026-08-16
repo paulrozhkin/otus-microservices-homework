@@ -126,7 +126,7 @@ HTTP API описано в OpenAPI:
 
 Test:
 ```powershell
-go test ./services/user-service/... ./services/billing-service/... ./services/order-service/... ./services/warehouse-service/... ./services/notification-service/... ./internal/platform/...
+go test ./services/user-service/... ./services/billing-service/... ./services/order-service/... ./services/warehouse-service/... ./services/delivery-service/... ./services/notification-service/... ./internal/platform/...
 ```
 
 Build:
@@ -135,6 +135,7 @@ docker build --platform linux/amd64 -f services/user-service/Dockerfile -t paulr
 docker build --platform linux/amd64 -f services/billing-service/Dockerfile -t paulrozhkin/otus-microservices-homework-08-09-billing-service:latest .
 docker build --platform linux/amd64 -f services/order-service/Dockerfile -t paulrozhkin/otus-microservices-homework-08-09-order-service:latest .
 docker build --platform linux/amd64 -f services/warehouse-service/Dockerfile -t paulrozhkin/otus-microservices-homework-08-09-warehouse-service:latest .
+docker build --platform linux/amd64 -f services/delivery-service/Dockerfile -t paulrozhkin/otus-microservices-homework-08-09-delivery-service:latest .
 docker build --platform linux/amd64 -f services/notification-service/Dockerfile -t paulrozhkin/otus-microservices-homework-08-09-notification-service:latest .
 ```
 
@@ -144,6 +145,7 @@ docker push paulrozhkin/otus-microservices-homework-08-09-user-service:latest
 docker push paulrozhkin/otus-microservices-homework-08-09-billing-service:latest
 docker push paulrozhkin/otus-microservices-homework-08-09-order-service:latest
 docker push paulrozhkin/otus-microservices-homework-08-09-warehouse-service:latest
+docker push paulrozhkin/otus-microservices-homework-08-09-delivery-service:latest
 docker push paulrozhkin/otus-microservices-homework-08-09-notification-service:latest
 ```
 
@@ -255,6 +257,7 @@ go run ./services/user-service/cmd/api migrate
 go run ./services/billing-service/cmd/api migrate
 go run ./services/order-service/cmd/api migrate
 go run ./services/warehouse-service/cmd/api migrate
+go run ./services/delivery-service/cmd/api migrate
 go run ./services/notification-service/cmd/api migrate
 ```
 4. Запускаем микросервисы в любом удобном режиме. Рекомендуется Compound run configuration in GoLand IDE

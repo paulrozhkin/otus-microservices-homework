@@ -26,6 +26,11 @@ dependencies:
     repository: "file://subcharts/microservice"
     condition: warehouse-service.enabled
   - name: microservice
+    alias: delivery-service
+    version: "0.1.0"
+    repository: "file://subcharts/microservice"
+    condition: delivery-service.enabled
+  - name: microservice
     alias: notification-service
     version: "0.1.0"
     repository: "file://subcharts/microservice"

@@ -23,13 +23,13 @@ sequenceDiagram
         BillingDB-->>Billing: Balance debited
         Billing-->>Order: 200 payment succeeded
         Order->>OrderDB: UPDATE status=paid
-        Order->>Kafka: publish notification.requested.v1<br/>key=orderId, orderStatus=paid
+        Order->>Kafka: publish notification.commands.v1<br/>key=orderId, orderStatus=paid
         Order-->>Gateway: 201 Order(status=paid)
     else Insufficient funds
         BillingDB-->>Billing: Balance unchanged
         Billing-->>Order: 409 insufficient funds
         Order->>OrderDB: UPDATE status=rejected
-        Order->>Kafka: publish notification.requested.v1<br/>key=orderId, orderStatus=rejected
+        Order->>Kafka: publish notification.commands.v1<br/>key=orderId, orderStatus=rejected
         Order-->>Gateway: 201 Order(status=rejected)
     end
 

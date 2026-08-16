@@ -5,10 +5,9 @@ import "time"
 type Status string
 
 const (
-	StatusPending  Status = "pending"
-	StatusPaid     Status = "paid"
-	StatusRejected Status = "rejected"
-	StatusFailed   Status = "failed"
+	StatusPaymentPending Status = "payment_pending"
+	StatusFailed         Status = "failed"
+	StatusCompleted      Status = "completed"
 )
 
 type Order struct {
@@ -16,6 +15,9 @@ type Order struct {
 	UserID        int64     `json:"userId"`
 	Email         string    `json:"email"`
 	Price         int64     `json:"price"`
+	ProductID     string    `json:"productId"`
+	CourierID     string    `json:"courierId"`
+	DeliverySlot  string    `json:"deliverySlot"`
 	Status        Status    `json:"status"`
 	FailureReason string    `json:"failureReason,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`

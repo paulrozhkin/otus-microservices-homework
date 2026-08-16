@@ -4,8 +4,8 @@ info:
   version: "1.0.0"
   description: |
     Creates and lists orders for the authenticated user. Monetary values are
-    represented as integer minor units. During creation the service synchronously
-    requests a payment from Billing and publishes a notification event to Kafka.
+    represented as integer minor units. Order creation starts an asynchronous
+    Kafka-based saga and returns its initial state.
 servers:
   - description: Local server
     url: http://localhost:8002
@@ -22,8 +22,8 @@ paths:
       tags: [orders]
       summary: Create an order
       description: |
-        Creates an order and attempts to debit its price from the current user's
-        billing account. Insufficient funds produce a rejected order, not an HTTP error.
+        Atomically creates an order in payment_pending state and an Outbox command
+        requesting Billing to charge the current user's account.
       operationId: createOrder
       security:
         - GatewayAuth: []
@@ -37,9 +37,12 @@ paths:
               $ref: "#/components/schemas/CreateOrderRequest"
             example:
               price: 4000
+              productId: iphone-15-black
+              courierId: courier-1
+              deliverySlot: 2026-08-20T10:00:00Z/2026-08-20T12:00:00Z
       responses:
-        "201":
-          description: Order was processed and stored
+        "202":
+          description: Order saga was accepted for asynchronous processing
           content:
             application/json:
               schema:
@@ -146,15 +149,27 @@ components:
   schemas:
     CreateOrderRequest:
       type: object
-      required: [price]
+      required: [price, productId, courierId, deliverySlot]
       properties:
         price:
           type: integer
           format: int64
           minimum: 1
+        productId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        courierId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        deliverySlot:
+          type: string
+          minLength: 1
+          maxLength: 255
     Order:
       type: object
-      required: [id, userId, email, price, status, createdAt, updatedAt]
+      required: [id, userId, email, price, productId, courierId, deliverySlot, status, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -169,9 +184,15 @@ components:
           type: integer
           format: int64
           minimum: 1
+        productId:
+          type: string
+        courierId:
+          type: string
+        deliverySlot:
+          type: string
         status:
           type: string
-          enum: [pending, paid, rejected, failed]
+          enum: [payment_pending, inventory_pending, delivery_pending, inventory_releasing, payment_refunding, completed, failed]
         failureReason:
           type: string
         createdAt:

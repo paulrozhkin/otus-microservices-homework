@@ -6,10 +6,23 @@ componentName: kafka
 image:
   repository: apache/kafka
   tag: "3.9.1"
-topic:
-  name: notification.requested.v1
-  partitions: 2
-  replicationFactor: 1
+defaultPartitions: 2
+topics:
+  - name: billing.commands.v1
+    partitions: 2
+    replicationFactor: 1
+  - name: warehouse.commands.v1
+    partitions: 2
+    replicationFactor: 1
+  - name: delivery.commands.v1
+    partitions: 2
+    replicationFactor: 1
+  - name: order.saga.events.v1
+    partitions: 2
+    replicationFactor: 1
+  - name: notification.commands.v1
+    partitions: 2
+    replicationFactor: 1
 persistence:
   enabled: true
   size: 500Mi

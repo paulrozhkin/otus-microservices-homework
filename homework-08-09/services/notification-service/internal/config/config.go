@@ -41,7 +41,7 @@ func Load() (Config, error) {
 		WithDefaultValues(map[string]any{
 			"http.addr":     ":8003",
 			"kafka.brokers": "kafka:29092",
-			"kafka.topic":   "notification.requested.v1",
+			"kafka.topic":   "notification.commands.v1",
 			"kafka.groupId": "notification-service-v1",
 		}).Load()
 	if err != nil {

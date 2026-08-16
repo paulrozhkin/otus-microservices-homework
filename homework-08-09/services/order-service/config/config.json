@@ -19,12 +19,10 @@
     "sslmode": "disable",
     "timeZone": "UTC"
   },
-  "billing": {
-    "baseURL": "http://localhost:8001",
-    "responseTimeout": "5s"
-  },
   "kafka": {
-    "brokers": "localhost:9092",
-    "topic": "notification.requested.v1"
+    "brokers": "localhost:9092"
+  },
+  "outbox": {
+    "pollInterval": "500ms"
   }
 }

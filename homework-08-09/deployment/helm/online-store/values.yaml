@@ -34,6 +34,11 @@ billing-service:
     username: billing_service
     password: billing_service
     database: billing_service
+  extraEnv:
+    OTUS_BILLING_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_BILLING_SERVICE_KAFKA_TOPIC: billing.commands.v1
+    OTUS_BILLING_SERVICE_KAFKA_GROUP_ID: billing-service-v1
+    OTUS_BILLING_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
 
 order-service:
   enabled: true
@@ -50,9 +55,8 @@ order-service:
     password: order_service
     database: order_service
   extraEnv:
-    OTUS_ORDER_SERVICE_BILLING_BASE_URL: 'http://{{ .Release.Name }}-billing-service:8001'
     OTUS_ORDER_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
-    OTUS_ORDER_SERVICE_KAFKA_TOPIC: notification.requested.v1
+    OTUS_ORDER_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
 
 notification-service:
   enabled: true
@@ -70,7 +74,7 @@ notification-service:
     database: notification_service
   extraEnv:
     OTUS_NOTIFICATION_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
-    OTUS_NOTIFICATION_SERVICE_KAFKA_TOPIC: notification.requested.v1
+    OTUS_NOTIFICATION_SERVICE_KAFKA_TOPIC: notification.commands.v1
     OTUS_NOTIFICATION_SERVICE_KAFKA_GROUP_ID: notification-service-v1
 
 kafka:
@@ -79,10 +83,23 @@ kafka:
   image:
     repository: apache/kafka
     tag: "3.9.1"
-  topic:
-    name: notification.requested.v1
-    partitions: 2
-    replicationFactor: 1
+  defaultPartitions: 2
+  topics:
+    - name: billing.commands.v1
+      partitions: 2
+      replicationFactor: 1
+    - name: warehouse.commands.v1
+      partitions: 2
+      replicationFactor: 1
+    - name: delivery.commands.v1
+      partitions: 2
+      replicationFactor: 1
+    - name: order.saga.events.v1
+      partitions: 2
+      replicationFactor: 1
+    - name: notification.commands.v1
+      partitions: 2
+      replicationFactor: 1
   persistence:
     enabled: true
     size: 500Mi

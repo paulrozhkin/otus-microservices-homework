@@ -3,7 +3,6 @@ package kafka
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	segmentkafka "github.com/segmentio/kafka-go"
@@ -44,11 +43,21 @@ func (c *ReaderConsumer) Consume(ctx context.Context, handler Handler) error {
 			}
 			continue
 		}
-		if err = handler(ctx, message.Key, message.Value); err != nil {
-			return fmt.Errorf("handle kafka message: %w", err)
+		for {
+			if err = handler(ctx, message.Key, message.Value); err == nil {
+				break
+			}
+			if err = waitForRetry(ctx, time.Second); err != nil {
+				return nil
+			}
 		}
-		if err = c.reader.CommitMessages(ctx, message); err != nil {
-			return fmt.Errorf("commit kafka message: %w", err)
+		for {
+			if err = c.reader.CommitMessages(ctx, message); err == nil {
+				break
+			}
+			if err = waitForRetry(ctx, time.Second); err != nil {
+				return nil
+			}
 		}
 	}
 }

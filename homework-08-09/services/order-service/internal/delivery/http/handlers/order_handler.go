@@ -21,7 +21,10 @@ func NewOrderHandler(service *service.OrderService) *OrderHandler {
 }
 
 type CreateOrderRequest struct {
-	Price int64 `json:"price" binding:"required,gt=0"`
+	Price        int64  `json:"price" binding:"required,gt=0"`
+	ProductID    string `json:"productId" binding:"required,max=255"`
+	CourierID    string `json:"courierId" binding:"required,max=255"`
+	DeliverySlot string `json:"deliverySlot" binding:"required,max=255"`
 }
 
 func (h *OrderHandler) Create(c *gin.Context) {
@@ -34,12 +37,15 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
-	order, err := h.service.Create(c, userID, email, request.Price)
+	order, err := h.service.Create(c, service.CreateOrder{
+		UserID: userID, Email: email, Price: request.Price,
+		ProductID: request.ProductID, CourierID: request.CourierID, DeliverySlot: request.DeliverySlot,
+	})
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	c.JSON(http.StatusCreated, order)
+	c.JSON(http.StatusAccepted, order)
 }
 
 func (h *OrderHandler) Get(c *gin.Context) {

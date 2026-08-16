@@ -30,18 +30,24 @@ services:
   kafka-init:
     image: apache/kafka:3.9.1
     restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
     command:
-      - /opt/kafka/bin/kafka-topics.sh
-      - --bootstrap-server
-      - kafka:29092
-      - --create
-      - --if-not-exists
-      - --topic
-      - notification.requested.v1
-      - --partitions
-      - "1"
-      - --replication-factor
-      - "1"
+      - |
+        for topic in \
+          billing.commands.v1 \
+          warehouse.commands.v1 \
+          delivery.commands.v1 \
+          order.saga.events.v1 \
+          notification.commands.v1
+        do
+          /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server kafka:29092 \
+            --create \
+            --if-not-exists \
+            --topic "$$topic" \
+            --partitions 2 \
+            --replication-factor 1
+        done
     depends_on:
       kafka:
         condition: service_healthy
@@ -153,10 +159,16 @@ services:
       OTUS_BILLING_SERVICE_DB_PASSWORD: billing_service
       OTUS_BILLING_SERVICE_DB_DBNAME: billing_service
       OTUS_BILLING_SERVICE_DB_SSLMODE: disable
+      OTUS_BILLING_SERVICE_KAFKA_BROKERS: kafka:29092
+      OTUS_BILLING_SERVICE_KAFKA_TOPIC: billing.commands.v1
+      OTUS_BILLING_SERVICE_KAFKA_GROUP_ID: billing-service-v1
+      OTUS_BILLING_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
     depends_on:
       billing-postgres:
         condition: service_healthy
       billing-migrate:
+        condition: service_completed_successfully
+      kafka-init:
         condition: service_completed_successfully
     networks:
       - monitoring
@@ -248,7 +260,6 @@ services:
       OTUS_ORDER_SERVICE_DB_SSLMODE: disable
       OTUS_ORDER_SERVICE_BILLING_BASE_URL: http://billing-service:8001
       OTUS_ORDER_SERVICE_KAFKA_BROKERS: kafka:29092
-      OTUS_ORDER_SERVICE_KAFKA_TOPIC: notification.requested.v1
     depends_on:
       order-postgres:
         condition: service_healthy
@@ -317,7 +328,7 @@ services:
       OTUS_NOTIFICATION_SERVICE_DB_DBNAME: notification_service
       OTUS_NOTIFICATION_SERVICE_DB_SSLMODE: disable
       OTUS_NOTIFICATION_SERVICE_KAFKA_BROKERS: kafka:29092
-      OTUS_NOTIFICATION_SERVICE_KAFKA_TOPIC: notification.requested.v1
+      OTUS_NOTIFICATION_SERVICE_KAFKA_TOPIC: notification.commands.v1
       OTUS_NOTIFICATION_SERVICE_KAFKA_GROUP_ID: notification-service-v1
     depends_on:
       notification-postgres:

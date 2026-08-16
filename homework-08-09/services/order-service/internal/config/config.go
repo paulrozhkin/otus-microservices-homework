@@ -9,18 +9,16 @@ import (
 
 type Config struct {
 	platformconfig.BaseConfig `mapstructure:",squash"`
-	Billing                   BillingConfig `mapstructure:"billing" validate:"required"`
-	Kafka                     KafkaConfig   `mapstructure:"kafka" validate:"required"`
-}
-
-type BillingConfig struct {
-	BaseURL         string        `mapstructure:"baseURL" validate:"required,http_url"`
-	ResponseTimeout time.Duration `mapstructure:"responseTimeout" validate:"required"`
+	Kafka                     KafkaConfig  `mapstructure:"kafka" validate:"required"`
+	Outbox                    OutboxConfig `mapstructure:"outbox" validate:"required"`
 }
 
 type KafkaConfig struct {
 	Brokers string `mapstructure:"brokers" validate:"required"`
-	Topic   string `mapstructure:"topic" validate:"required"`
+}
+
+type OutboxConfig struct {
+	PollInterval time.Duration `mapstructure:"pollInterval" validate:"required"`
 }
 
 func (c KafkaConfig) BrokerList() []string {
@@ -40,17 +38,13 @@ func Load() (Config, error) {
 		WithConfigPath("./services/order-service/config").
 		WithEnvPrefix("OTUS_ORDER_SERVICE").
 		WithBindEnv(map[string]string{
-			"billing.baseURL":         "BILLING_BASE_URL",
-			"billing.responseTimeout": "BILLING_RESPONSE_TIMEOUT",
-			"kafka.brokers":           "KAFKA_BROKERS",
-			"kafka.topic":             "KAFKA_TOPIC",
+			"kafka.brokers":       "KAFKA_BROKERS",
+			"outbox.pollInterval": "OUTBOX_POLL_INTERVAL",
 		}).
 		WithDefaultValues(map[string]any{
-			"http.addr":               ":8002",
-			"billing.baseURL":         "http://billing-service:8001",
-			"billing.responseTimeout": 5 * time.Second,
-			"kafka.brokers":           "kafka:29092",
-			"kafka.topic":             "notification.requested.v1",
+			"http.addr":           ":8002",
+			"kafka.brokers":       "kafka:29092",
+			"outbox.pollInterval": 500 * time.Millisecond,
 		}).Load()
 	if err != nil {
 		return Config{}, err

@@ -27,25 +27,26 @@ spec:
             - |
               kafka_topics=/opt/kafka/bin/kafka-topics.sh
               bootstrap_server={{ printf "%s:29092" (include "kafka-stack.fullname" .) | quote }}
-              topic={{ .Values.topic.name | quote }}
-              desired_partitions={{ .Values.topic.partitions | quote }}
+              {{- range .Values.topics }}
+              topic={{ .name | quote }}
+              desired_partitions={{ .partitions | quote }}
 
               if ! "$kafka_topics" --bootstrap-server "$bootstrap_server" --describe --topic "$topic" >/dev/null 2>&1; then
                 "$kafka_topics" --bootstrap-server "$bootstrap_server" \
                   --create \
                   --topic "$topic" \
                   --partitions "$desired_partitions" \
-                  --replication-factor {{ .Values.topic.replicationFactor | quote }}
-                exit 0
+                  --replication-factor {{ .replicationFactor | quote }}
+              else
+                current_partitions=$("$kafka_topics" --bootstrap-server "$bootstrap_server" --describe --topic "$topic" | awk -F 'PartitionCount: ' 'NR == 1 { split($2, fields, " "); print fields[1] }')
+                if [ "$current_partitions" -lt "$desired_partitions" ]; then
+                  "$kafka_topics" --bootstrap-server "$bootstrap_server" \
+                    --alter \
+                    --topic "$topic" \
+                    --partitions "$desired_partitions"
+                elif [ "$current_partitions" -gt "$desired_partitions" ]; then
+                  echo "cannot decrease topic $topic from $current_partitions to $desired_partitions partitions" >&2
+                  exit 1
+                fi
               fi
-
-              current_partitions=$("$kafka_topics" --bootstrap-server "$bootstrap_server" --describe --topic "$topic" | awk -F 'PartitionCount: ' 'NR == 1 { split($2, fields, " "); print fields[1] }')
-              if [ "$current_partitions" -lt "$desired_partitions" ]; then
-                "$kafka_topics" --bootstrap-server "$bootstrap_server" \
-                  --alter \
-                  --topic "$topic" \
-                  --partitions "$desired_partitions"
-              elif [ "$current_partitions" -gt "$desired_partitions" ]; then
-                echo "cannot decrease topic $topic from $current_partitions to $desired_partitions partitions" >&2
-                exit 1
-              fi
+              {{- end }}

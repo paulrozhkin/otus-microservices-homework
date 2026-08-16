@@ -8,18 +8,23 @@ import (
 )
 
 type Publisher interface {
-	Publish(ctx context.Context, key, value []byte) error
+	Publish(ctx context.Context, message Message) error
 	Close() error
+}
+
+type Message struct {
+	Topic string
+	Key   []byte
+	Value []byte
 }
 
 type WriterPublisher struct {
 	writer *segmentkafka.Writer
 }
 
-func NewPublisher(brokers []string, topic string) *WriterPublisher {
+func NewPublisher(brokers []string) *WriterPublisher {
 	return &WriterPublisher{writer: &segmentkafka.Writer{
 		Addr:                   segmentkafka.TCP(brokers...),
-		Topic:                  topic,
 		Balancer:               &segmentkafka.Hash{},
 		RequiredAcks:           segmentkafka.RequireAll,
 		Async:                  false,
@@ -27,9 +32,12 @@ func NewPublisher(brokers []string, topic string) *WriterPublisher {
 	}}
 }
 
-func (p *WriterPublisher) Publish(ctx context.Context, key, value []byte) error {
+func (p *WriterPublisher) Publish(ctx context.Context, message Message) error {
 	return p.writer.WriteMessages(ctx, segmentkafka.Message{
-		Key: key, Value: value, Time: time.Now().UTC(),
+		Topic: message.Topic,
+		Key:   message.Key,
+		Value: message.Value,
+		Time:  time.Now().UTC(),
 	})
 }
 

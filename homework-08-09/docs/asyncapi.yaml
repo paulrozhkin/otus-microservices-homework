@@ -1,113 +1,231 @@
 asyncapi: 3.0.0
 info:
-  title: Online Store Notification Events
+  title: Online Store Saga Messages
   version: 1.0.0
-  description: |
-    Асинхронный контракт между Order Service и Notification Service.
-    Order Service публикует результат обработки заказа, а Notification Service
-    сохраняет соответствующее email-сообщение в своей базе данных.
+  description: Kafka contracts for the sequential order saga. Every message uses orderId as the Kafka key and sagaId.
 defaultContentType: application/json
 servers:
   kafka:
     host: online-store-kafka:29092
     protocol: kafka
-    description: Kafka внутри Kubernetes namespace online-store
 channels:
-  notificationRequested:
-    address: notification.requested.v1
-    description: Запрос на сохранение уведомления о результате оформления заказа.
+  billingCommands:
+    address: billing.commands.v1
+    messages:
+      chargePayment:
+        $ref: '#/components/messages/ChargePayment'
+      refundPayment:
+        $ref: '#/components/messages/RefundPayment'
+  warehouseCommands:
+    address: warehouse.commands.v1
+    messages:
+      reserveInventory:
+        $ref: '#/components/messages/ReserveInventory'
+      releaseInventory:
+        $ref: '#/components/messages/ReleaseInventory'
+  deliveryCommands:
+    address: delivery.commands.v1
+    messages:
+      reserveDelivery:
+        $ref: '#/components/messages/ReserveDelivery'
+  orderSagaEvents:
+    address: order.saga.events.v1
+    messages:
+      sagaResult:
+        $ref: '#/components/messages/SagaResult'
+  notificationCommands:
+    address: notification.commands.v1
     messages:
       notificationRequested:
         $ref: '#/components/messages/NotificationRequested'
 operations:
-  publishNotificationRequested:
+  orderSendsBillingCommands:
     action: send
-    summary: Order Service публикует результат обработки заказа.
     channel:
-      $ref: '#/channels/notificationRequested'
-    messages:
-      - $ref: '#/channels/notificationRequested/messages/notificationRequested'
-  consumeNotificationRequested:
+      $ref: '#/channels/billingCommands'
+  orderSendsWarehouseCommands:
+    action: send
+    channel:
+      $ref: '#/channels/warehouseCommands'
+  orderSendsDeliveryCommands:
+    action: send
+    channel:
+      $ref: '#/channels/deliveryCommands'
+  orderReceivesSagaEvents:
     action: receive
-    summary: Notification Service получает событие и сохраняет сообщение.
-    description: |
-      Экземпляры Notification Service используют consumer group
-      notification-service-v1. Offset подтверждается после успешной записи в БД.
     channel:
-      $ref: '#/channels/notificationRequested'
-    messages:
-      - $ref: '#/channels/notificationRequested/messages/notificationRequested'
+      $ref: '#/channels/orderSagaEvents'
+  orderSendsNotificationCommands:
+    action: send
+    channel:
+      $ref: '#/channels/notificationCommands'
 components:
   messages:
+    ChargePayment:
+      name: billing.payment.charge.requested.v1
+      payload:
+        $ref: '#/components/schemas/ChargePaymentEnvelope'
+    RefundPayment:
+      name: billing.payment.refund.requested.v1
+      payload:
+        $ref: '#/components/schemas/RefundPaymentEnvelope'
+    ReserveInventory:
+      name: warehouse.inventory.reserve.requested.v1
+      payload:
+        $ref: '#/components/schemas/ReserveInventoryEnvelope'
+    ReleaseInventory:
+      name: warehouse.inventory.release.requested.v1
+      payload:
+        $ref: '#/components/schemas/ReleaseInventoryEnvelope'
+    ReserveDelivery:
+      name: delivery.slot.reserve.requested.v1
+      payload:
+        $ref: '#/components/schemas/ReserveDeliveryEnvelope'
+    SagaResult:
+      name: order.saga.result.v1
+      description: One of the typed success or failure events declared by messageType.
+      payload:
+        $ref: '#/components/schemas/ResultEnvelope'
     NotificationRequested:
       name: notification.requested.v1
-      title: Notification requested
-      summary: Результат оплаты заказа, из которого формируется email-уведомление.
-      correlationId:
-        location: $message.payload#/orderId
-      bindings:
-        kafka:
-          key:
-            type: string
-            format: uuid
-            description: orderId; сохраняет порядок событий одного заказа в одной партиции.
-          bindingVersion: 0.5.0
       payload:
-        $ref: '#/components/schemas/NotificationRequestedPayload'
-      examples:
-        - name: paidOrder
-          summary: Платёж успешно выполнен
-          payload:
-            eventId: e11df7fd-3de3-4a60-8b1c-d0b782c00e16
-            eventType: notification.requested.v1
-            orderId: 7d6dabe7-c8cb-46f1-a2f0-d27cdc3239fb
-            userId: 42
-            email: user@example.com
-            orderStatus: paid
-            subject: Order paid
-            body: Your order has been successfully paid
-            occurredAt: '2026-08-12T18:06:39Z'
+        $ref: '#/components/schemas/ResultEnvelope'
   schemas:
-    NotificationRequestedPayload:
+    EnvelopeFields:
       type: object
-      additionalProperties: false
-      required:
-        - eventId
-        - eventType
-        - orderId
-        - userId
-        - email
-        - orderStatus
-        - subject
-        - body
-        - occurredAt
+      required: [messageId, messageType, sagaId, correlationId, occurredAt, payload]
       properties:
-        eventId:
+        messageId:
           type: string
           format: uuid
-          description: Ключ идемпотентности Notification Service.
-        eventType:
+        messageType:
           type: string
-          const: notification.requested.v1
-        orderId:
+        sagaId:
           type: string
           format: uuid
-        userId:
-          type: integer
-          format: int64
-          minimum: 1
-        email:
+        correlationId:
           type: string
-          format: email
-        orderStatus:
+          format: uuid
+        causationId:
           type: string
-          enum: [paid, rejected]
-        subject:
-          type: string
-          minLength: 1
-        body:
-          type: string
-          minLength: 1
+          format: uuid
         occurredAt:
           type: string
           format: date-time
+    ChargePaymentEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: billing.payment.charge.requested.v1
+            payload:
+              $ref: '#/components/schemas/ChargePayment'
+    RefundPaymentEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: billing.payment.refund.requested.v1
+            payload:
+              $ref: '#/components/schemas/RefundPayment'
+    ReserveInventoryEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: warehouse.inventory.reserve.requested.v1
+            payload:
+              $ref: '#/components/schemas/ReserveInventory'
+    ReleaseInventoryEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: warehouse.inventory.release.requested.v1
+            payload:
+              $ref: '#/components/schemas/ReleaseInventory'
+    ReserveDeliveryEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: delivery.slot.reserve.requested.v1
+            payload:
+              $ref: '#/components/schemas/ReserveDelivery'
+    ResultEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            payload:
+              $ref: '#/components/schemas/OperationResult'
+    ChargePayment:
+      type: object
+      required: [orderId, operationId, userId, amount]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+    RefundPayment:
+      type: object
+      required: [orderId, operationId, originalOperationId]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+        originalOperationId:
+          type: string
+    ReserveInventory:
+      type: object
+      required: [orderId, productId]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        productId:
+          type: string
+    ReleaseInventory:
+      type: object
+      required: [orderId, productId]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        productId:
+          type: string
+    ReserveDelivery:
+      type: object
+      required: [orderId, courierId, deliverySlot]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        courierId:
+          type: string
+        deliverySlot:
+          type: string
+    OperationResult:
+      type: object
+      required: [orderId]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        reason:
+          type: string

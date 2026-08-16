@@ -89,9 +89,9 @@
 * `order-service` создает заказ, синхронно вызывает Billing Service для оплаты и сохраняет итоговый статус `paid` или `rejected`;
 * `notification-service` получает события из Kafka и сохраняет email-сообщения в своей БД. Фактическая отправка email по условию задания не выполняется.
 
-Каждый прикладной сервис запущен в двух репликах. Kafka-топик `notification.requested.v1` имеет две партиции. Обе реплики Notification Service входят в consumer group `notification-service-v1`, поэтому при штатной работе каждая читает одну партицию, а при отказе одной реплики оставшаяся получает обе партиции после rebalance.
+Каждый прикладной сервис запущен в двух репликах. Kafka-топик `notification.commands.v1` имеет две партиции. Обе реплики Notification Service входят в consumer group `notification-service-v1`, поэтому при штатной работе каждая читает одну партицию, а при отказе одной реплики оставшаяся получает обе партиции после rebalance.
 
-При создании заказа Order Service сначала сохраняет заказ со статусом `pending`, затем вызывает `POST /internal/v1/payments`. В качестве `operationId` используется `order:{orderId}`, поэтому повтор HTTP-запроса не приводит к повторному списанию. После ответа Billing Service заказ переводится в `paid` или `rejected`, а Order Service публикует `notification.requested.v1` с Kafka key, равным `orderId`.
+При создании заказа Order Service сначала сохраняет заказ со статусом `pending`, затем вызывает `POST /internal/v1/payments`. В качестве `operationId` используется `order:{orderId}`, поэтому повтор HTTP-запроса не приводит к повторному списанию. После ответа Billing Service заказ переводится в `paid` или `rejected`, а Order Service публикует `notification.commands.v1` с Kafka key, равным `orderId`.
 
 Notification Service фиксирует Kafka offset только после успешного сохранения сообщения. Доставка имеет семантику at-least-once, поэтому `eventId` используется как primary key, а повторная запись выполняется через `ON CONFLICT DO NOTHING`.
 
@@ -118,7 +118,7 @@ HTTP API описано в OpenAPI:
 * [Billing Service OpenAPI](./services/billing-service/docs/swagger.yaml) — создание счета, пополнение, снятие и внутренний `POST /internal/v1/payments`;
 * [Notification Service OpenAPI](./services/notification-service/docs/swagger.yaml) — `GET /api/v1/notifications`.
 
-Асинхронный контракт описан в [AsyncAPI](./docs/asyncapi.yaml): топик `notification.requested.v1`, Kafka key `orderId`, producer `order-service`, consumer `notification-service`, consumer group `notification-service-v1`.
+Асинхронный контракт описан в [AsyncAPI](./docs/asyncapi.yaml): топик `notification.commands.v1`, Kafka key `orderId`, producer `order-service`, consumer `notification-service`, consumer group `notification-service-v1`.
 
 
 ## Сборка и публикация

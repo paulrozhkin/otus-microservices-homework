@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	platformdb "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/database"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/outbox"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/billing-service/internal/app"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/billing-service/internal/config"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/billing-service/internal/repositories"
@@ -47,5 +48,5 @@ func migrate(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	return db.AutoMigrate(&repositories.Account{}, &repositories.Operation{})
+	return db.AutoMigrate(&repositories.Account{}, &repositories.Operation{}, &outbox.Message{})
 }

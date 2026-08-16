@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/contracts"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/notification-service/internal/entity"
 	"github.com/stretchr/testify/require"
 )
@@ -30,26 +31,70 @@ func TestHandleNotificationRequested(t *testing.T) {
 	repository := &fakeNotificationRepository{}
 	handler := NewNotificationHandler(repository)
 	occurredAt := time.Now().UTC().Truncate(time.Millisecond)
-	payload, err := json.Marshal(NotificationRequested{
-		EventID: "event-1", EventType: NotificationRequestedV1, OrderID: "order-1",
-		UserID: 42, Email: "user@example.com", OrderStatus: "paid",
-		Subject: "Order paid", Body: "Success", OccurredAt: occurredAt,
-	})
-	require.NoError(t, err)
+	payload := notificationEnvelope(t, "order-1", occurredAt)
 
 	require.NoError(t, handler.Handle(context.Background(), []byte("order-1"), payload))
 	require.Equal(t, 1, repository.createCalls)
-	require.Equal(t, "event-1", repository.notification.EventID)
+	require.Equal(t, "message-1", repository.notification.EventID)
+	require.Equal(t, "order-1", repository.notification.OrderID)
 	require.Equal(t, int64(42), repository.notification.UserID)
-	require.Equal(t, "paid", repository.notification.OrderStatus)
+	require.Equal(t, "completed", repository.notification.OrderStatus)
 	require.Equal(t, occurredAt, repository.notification.CreatedAt)
 }
 
-func TestHandleRejectsInvalidEvent(t *testing.T) {
+func TestHandleRejectsUnsupportedMessage(t *testing.T) {
+	repository := &fakeNotificationRepository{}
+	handler := NewNotificationHandler(repository)
+	payload := notificationEnvelope(t, "order-1", time.Now().UTC())
+	var envelope contracts.Envelope
+	require.NoError(t, json.Unmarshal(payload, &envelope))
+	envelope.MessageType = "unknown"
+	payload, err := json.Marshal(envelope)
+	require.NoError(t, err)
+
+	err = handler.Handle(context.Background(), []byte("order-1"), payload)
+	require.Error(t, err)
+	require.Zero(t, repository.createCalls)
+}
+
+func TestHandleRejectsMismatchedKafkaKey(t *testing.T) {
 	repository := &fakeNotificationRepository{}
 	handler := NewNotificationHandler(repository)
 
-	err := handler.Handle(context.Background(), nil, []byte(`{"eventType":"unknown"}`))
+	err := handler.Handle(context.Background(), []byte("another-order"), notificationEnvelope(t, "order-1", time.Now().UTC()))
 	require.Error(t, err)
 	require.Zero(t, repository.createCalls)
+}
+
+func TestHandleRejectsInvalidPayload(t *testing.T) {
+	repository := &fakeNotificationRepository{}
+	handler := NewNotificationHandler(repository)
+	payload := notificationEnvelope(t, "order-1", time.Now().UTC())
+	var envelope contracts.Envelope
+	require.NoError(t, json.Unmarshal(payload, &envelope))
+	envelope.Payload = json.RawMessage(`{"orderId":"order-1"}`)
+	payload, err := json.Marshal(envelope)
+	require.NoError(t, err)
+
+	err = handler.Handle(context.Background(), []byte("order-1"), payload)
+	require.Error(t, err)
+	require.Zero(t, repository.createCalls)
+}
+
+func notificationEnvelope(t *testing.T, orderID string, occurredAt time.Time) []byte {
+	t.Helper()
+	payload, err := json.Marshal(contracts.SendNotification{
+		OrderID: orderID, UserID: 42, Email: "user@example.com", OrderStatus: "completed",
+		Subject: "Order completed", Body: "Success",
+	})
+	require.NoError(t, err)
+
+	envelope := contracts.Envelope{
+		MessageID: "message-1", MessageType: contracts.MessageNotificationRequested,
+		SagaID: orderID, CorrelationID: orderID, CausationID: "delivery-event-1",
+		OccurredAt: occurredAt, Payload: payload,
+	}
+	encoded, err := envelope.Marshal()
+	require.NoError(t, err)
+	return encoded
 }

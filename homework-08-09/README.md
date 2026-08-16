@@ -117,7 +117,7 @@
 
 Каждый прикладной сервис запущен в двух репликах. Kafka-топик `notification.commands.v1` имеет две партиции. Обе реплики Notification Service входят в consumer group `notification-service-v1`, поэтому при штатной работе каждая читает одну партицию, а при отказе одной реплики оставшаяся получает обе партиции после rebalance.
 
-При создании заказа Order Service сначала сохраняет заказ со статусом `pending`, затем вызывает `POST /internal/v1/payments`. В качестве `operationId` используется `order:{orderId}`, поэтому повтор HTTP-запроса не приводит к повторному списанию. После ответа Billing Service заказ переводится в `paid` или `rejected`, а Order Service публикует `notification.commands.v1` с Kafka key, равным `orderId`.
+При создании заказа Order Service сохраняет заказ со статусом `payment_pending` и запускает оркестрируемую сагу через Kafka. Успешный заказ проходит Billing, Warehouse и Delivery и завершается статусом `completed`. При отказе сохраняются `failureStage` (`billing`, `warehouse` или `delivery`) и `failureReason`; после необходимых компенсаций заказ завершается статусом `failed`. Для каждого финального результата Order Service публикует `notification.commands.v1` с Kafka key, равным `orderId`: письмо об успехе либо отдельное сообщение об ошибке соответствующего этапа.
 
 Notification Service фиксирует Kafka offset только после успешного сохранения сообщения. Доставка имеет семантику at-least-once, поэтому `eventId` используется как primary key, а повторная запись выполняется через `ON CONFLICT DO NOTHING`.
 
@@ -129,7 +129,7 @@ Notification Service фиксирует Kafka offset только после у�
 
 Исходник: [architecture.mmd](./docs/architecture.mmd).
 
-### Создание заказа: HTTP Billing + Kafka Notifications
+### Создание заказа: Kafka Saga + уведомления о результате
 
 ![Order sequence](./docs/sequence-http-kafka.svg)
 

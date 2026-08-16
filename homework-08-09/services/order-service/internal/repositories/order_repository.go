@@ -24,6 +24,7 @@ type Order struct {
 	CourierID     string `gorm:"not null;size:255"`
 	DeliverySlot  string `gorm:"not null;size:255"`
 	Status        string `gorm:"not null;size:32;index"`
+	FailureStage  string `gorm:"not null;size:32;default:''"`
 	FailureReason string `gorm:"not null;default:''"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -61,7 +62,7 @@ func NewOrderRepository(db *gorm.DB, outboxRepository *outbox.Repository) *Order
 
 func (r *OrderRepositoryImpl) ApplyPaymentSucceeded(ctx context.Context, orderID, causationID string) error {
 	clearReason := ""
-	return r.applyTransition(ctx, orderID, entity.StatusPaymentPending, entity.StatusInventoryPending, &clearReason,
+	return r.applyTransition(ctx, orderID, entity.StatusPaymentPending, entity.StatusInventoryPending, &clearReason, nil,
 		func(order *Order) (*outbox.Message, error) { return newReserveInventoryMessage(order, causationID) })
 }
 
@@ -70,40 +71,49 @@ func newReserveInventoryMessage(order *Order, causationID string) (*outbox.Messa
 		contracts.ReserveInventory{OrderID: order.ID, OperationID: "order:" + order.ID + ":inventory:reserve", ProductID: order.ProductID})
 }
 
-func (r *OrderRepositoryImpl) ApplyPaymentFailed(ctx context.Context, orderID, reason string) error {
+func (r *OrderRepositoryImpl) ApplyPaymentFailed(ctx context.Context, orderID, reason, causationID string) error {
 	if reason == "" {
 		reason = "payment failed"
 	}
-	return r.applyTransition(ctx, orderID, entity.StatusPaymentPending, entity.StatusFailed, &reason, nil)
+	stage := entity.FailureStageBilling
+	return r.applyTransition(ctx, orderID, entity.StatusPaymentPending, entity.StatusFailed, &reason, &stage,
+		func(order *Order) (*outbox.Message, error) {
+			return newFailureNotificationMessage(order, causationID, stage, reason)
+		})
 }
 
 func (r *OrderRepositoryImpl) ApplyInventoryReserved(ctx context.Context, orderID, causationID string) error {
-	return r.applyTransition(ctx, orderID, entity.StatusInventoryPending, entity.StatusDeliveryPending, nil,
+	return r.applyTransition(ctx, orderID, entity.StatusInventoryPending, entity.StatusDeliveryPending, nil, nil,
 		func(order *Order) (*outbox.Message, error) { return newReserveDeliveryMessage(order, causationID) })
 }
 
 func (r *OrderRepositoryImpl) ApplyInventoryReservationFailed(ctx context.Context, orderID, reason, causationID string) error {
-	return r.applyTransition(ctx, orderID, entity.StatusInventoryPending, entity.StatusPaymentRefunding, &reason,
+	stage := entity.FailureStageWarehouse
+	return r.applyTransition(ctx, orderID, entity.StatusInventoryPending, entity.StatusPaymentRefunding, &reason, &stage,
 		func(order *Order) (*outbox.Message, error) { return newRefundPaymentMessage(order, causationID) })
 }
 
 func (r *OrderRepositoryImpl) ApplyDeliveryReserved(ctx context.Context, orderID, causationID string) error {
-	return r.applyTransition(ctx, orderID, entity.StatusDeliveryPending, entity.StatusCompleted, nil,
-		func(order *Order) (*outbox.Message, error) { return newNotificationMessage(order, causationID) })
+	return r.applyTransition(ctx, orderID, entity.StatusDeliveryPending, entity.StatusCompleted, nil, nil,
+		func(order *Order) (*outbox.Message, error) { return newSuccessNotificationMessage(order, causationID) })
 }
 
 func (r *OrderRepositoryImpl) ApplyDeliveryReservationFailed(ctx context.Context, orderID, reason, causationID string) error {
-	return r.applyTransition(ctx, orderID, entity.StatusDeliveryPending, entity.StatusInventoryReleasing, &reason,
+	stage := entity.FailureStageDelivery
+	return r.applyTransition(ctx, orderID, entity.StatusDeliveryPending, entity.StatusInventoryReleasing, &reason, &stage,
 		func(order *Order) (*outbox.Message, error) { return newReleaseInventoryMessage(order, causationID) })
 }
 
 func (r *OrderRepositoryImpl) ApplyInventoryReleased(ctx context.Context, orderID, causationID string) error {
-	return r.applyTransition(ctx, orderID, entity.StatusInventoryReleasing, entity.StatusPaymentRefunding, nil,
+	return r.applyTransition(ctx, orderID, entity.StatusInventoryReleasing, entity.StatusPaymentRefunding, nil, nil,
 		func(order *Order) (*outbox.Message, error) { return newRefundPaymentMessage(order, causationID) })
 }
 
-func (r *OrderRepositoryImpl) ApplyPaymentRefunded(ctx context.Context, orderID string) error {
-	return r.applyTransition(ctx, orderID, entity.StatusPaymentRefunding, entity.StatusFailed, nil, nil)
+func (r *OrderRepositoryImpl) ApplyPaymentRefunded(ctx context.Context, orderID, causationID string) error {
+	return r.applyTransition(ctx, orderID, entity.StatusPaymentRefunding, entity.StatusFailed, nil, nil,
+		func(order *Order) (*outbox.Message, error) {
+			return newFailureNotificationMessage(order, causationID, entity.FailureStage(order.FailureStage), order.FailureReason)
+		})
 }
 
 type transitionMessageBuilder func(*Order) (*outbox.Message, error)
@@ -113,6 +123,7 @@ func (r *OrderRepositoryImpl) applyTransition(
 	orderID string,
 	expectedStatus, targetStatus entity.Status,
 	failureReason *string,
+	failureStage *entity.FailureStage,
 	buildMessage transitionMessageBuilder,
 ) error {
 	var transitioned *Order
@@ -140,6 +151,9 @@ func (r *OrderRepositoryImpl) applyTransition(
 		updates := map[string]any{"status": string(targetStatus)}
 		if failureReason != nil {
 			updates["failure_reason"] = *failureReason
+		}
+		if failureStage != nil {
+			updates["failure_stage"] = string(*failureStage)
 		}
 		if err = tx.Model(&Order{}).Where("id = ?", order.ID).Updates(updates).Error; err != nil {
 			return err
@@ -176,12 +190,33 @@ func newRefundPaymentMessage(order *Order, causationID string) (*outbox.Message,
 		})
 }
 
-func newNotificationMessage(order *Order, causationID string) (*outbox.Message, error) {
+func newSuccessNotificationMessage(order *Order, causationID string) (*outbox.Message, error) {
 	return newCommandMessage(contracts.TopicNotificationCommands, contracts.MessageNotificationRequested, order, causationID,
 		contracts.SendNotification{
 			OrderID: order.ID, UserID: order.UserID, Email: order.Email,
 			OrderStatus: string(entity.StatusCompleted), Subject: "Order completed",
 			Body: fmt.Sprintf("Order %s has been completed", order.ID),
+		})
+}
+
+func newFailureNotificationMessage(order *Order, causationID string, stage entity.FailureStage, reason string) (*outbox.Message, error) {
+	subject := "Order processing failed"
+	body := fmt.Sprintf("Order %s could not be completed: %s", order.ID, reason)
+	switch stage {
+	case entity.FailureStageBilling:
+		subject = "Order payment failed"
+		body = fmt.Sprintf("Payment for order %s was declined: %s", order.ID, reason)
+	case entity.FailureStageWarehouse:
+		subject = "Order inventory reservation failed"
+		body = fmt.Sprintf("Product reservation for order %s failed; payment was refunded: %s", order.ID, reason)
+	case entity.FailureStageDelivery:
+		subject = "Order delivery reservation failed"
+		body = fmt.Sprintf("Delivery reservation for order %s failed; inventory was released and payment was refunded: %s", order.ID, reason)
+	}
+	return newCommandMessage(contracts.TopicNotificationCommands, contracts.MessageNotificationRequested, order, causationID,
+		contracts.SendNotification{
+			OrderID: order.ID, UserID: order.UserID, Email: order.Email,
+			OrderStatus: string(entity.StatusFailed), Subject: subject, Body: body,
 		})
 }
 
@@ -249,7 +284,7 @@ func (r *OrderRepositoryImpl) CreateIdempotent(
 func (r *OrderRepositoryImpl) Update(ctx context.Context, order *entity.Order) error {
 	dao := orderToDAO(order)
 	result := r.db.WithContext(ctx).Model(&Order{}).Where("id = ? AND user_id = ?", order.ID, order.UserID).Updates(map[string]any{
-		"status": dao.Status, "failure_reason": dao.FailureReason,
+		"status": dao.Status, "failure_stage": dao.FailureStage, "failure_reason": dao.FailureReason,
 	})
 	if result.Error != nil {
 		return result.Error
@@ -287,7 +322,7 @@ func orderToDAO(order *entity.Order) *Order {
 	return &Order{
 		ID: order.ID, UserID: order.UserID, Email: order.Email, Price: order.Price,
 		ProductID: order.ProductID, CourierID: order.CourierID, DeliverySlot: order.DeliverySlot,
-		Status: string(order.Status), FailureReason: order.FailureReason,
+		Status: string(order.Status), FailureStage: string(order.FailureStage), FailureReason: order.FailureReason,
 		CreatedAt: order.CreatedAt, UpdatedAt: order.UpdatedAt,
 	}
 }
@@ -296,7 +331,7 @@ func orderFromDAO(dao *Order) *entity.Order {
 	return &entity.Order{
 		ID: dao.ID, UserID: dao.UserID, Email: dao.Email, Price: dao.Price,
 		ProductID: dao.ProductID, CourierID: dao.CourierID, DeliverySlot: dao.DeliverySlot,
-		Status: entity.Status(dao.Status), FailureReason: dao.FailureReason,
+		Status: entity.Status(dao.Status), FailureStage: entity.FailureStage(dao.FailureStage), FailureReason: dao.FailureReason,
 		CreatedAt: dao.CreatedAt, UpdatedAt: dao.UpdatedAt,
 	}
 }

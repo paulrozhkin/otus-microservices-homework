@@ -207,6 +207,9 @@ components:
         status:
           type: string
           enum: [payment_pending, inventory_pending, delivery_pending, inventory_releasing, payment_refunding, completed, failed]
+        failureStage:
+          type: string
+          enum: [billing, warehouse, delivery]
         failureReason:
           type: string
         createdAt:

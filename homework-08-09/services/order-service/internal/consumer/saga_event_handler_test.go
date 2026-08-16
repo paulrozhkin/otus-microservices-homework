@@ -23,8 +23,8 @@ func (s *sagaResultProcessorStub) record(call, orderID, reason, causationID stri
 func (s *sagaResultProcessorStub) ApplyPaymentSucceeded(_ context.Context, orderID, causationID string) error {
 	return s.record("payment_succeeded", orderID, "", causationID)
 }
-func (s *sagaResultProcessorStub) ApplyPaymentFailed(_ context.Context, orderID, reason string) error {
-	return s.record("payment_failed", orderID, reason, "")
+func (s *sagaResultProcessorStub) ApplyPaymentFailed(_ context.Context, orderID, reason, causationID string) error {
+	return s.record("payment_failed", orderID, reason, causationID)
 }
 func (s *sagaResultProcessorStub) ApplyInventoryReserved(_ context.Context, orderID, causationID string) error {
 	return s.record("inventory_reserved", orderID, "", causationID)
@@ -41,8 +41,8 @@ func (s *sagaResultProcessorStub) ApplyDeliveryReservationFailed(_ context.Conte
 func (s *sagaResultProcessorStub) ApplyInventoryReleased(_ context.Context, orderID, causationID string) error {
 	return s.record("inventory_released", orderID, "", causationID)
 }
-func (s *sagaResultProcessorStub) ApplyPaymentRefunded(_ context.Context, orderID string) error {
-	return s.record("payment_refunded", orderID, "", "")
+func (s *sagaResultProcessorStub) ApplyPaymentRefunded(_ context.Context, orderID, causationID string) error {
+	return s.record("payment_refunded", orderID, "", causationID)
 }
 
 func TestSagaEventHandlerRoutesResults(t *testing.T) {
@@ -55,13 +55,13 @@ func TestSagaEventHandlerRoutesResults(t *testing.T) {
 		caused      bool
 	}{
 		{name: "payment succeeded", messageType: contracts.MessagePaymentSucceeded, payload: contracts.OperationSucceeded{OrderID: "order-1"}, call: "payment_succeeded", caused: true},
-		{name: "payment failed", messageType: contracts.MessagePaymentFailed, payload: contracts.OperationFailed{OrderID: "order-1", Reason: "insufficient funds"}, call: "payment_failed", reason: "insufficient funds"},
+		{name: "payment failed", messageType: contracts.MessagePaymentFailed, payload: contracts.OperationFailed{OrderID: "order-1", Reason: "insufficient funds"}, call: "payment_failed", reason: "insufficient funds", caused: true},
 		{name: "inventory reserved", messageType: contracts.MessageInventoryReserved, payload: contracts.OperationSucceeded{OrderID: "order-1"}, call: "inventory_reserved", caused: true},
 		{name: "inventory failed", messageType: contracts.MessageInventoryReservationFailed, payload: contracts.OperationFailed{OrderID: "order-1", Reason: "product unavailable"}, call: "inventory_failed", reason: "product unavailable", caused: true},
 		{name: "delivery reserved", messageType: contracts.MessageDeliveryReserved, payload: contracts.OperationSucceeded{OrderID: "order-1"}, call: "delivery_reserved", caused: true},
 		{name: "delivery failed", messageType: contracts.MessageDeliveryReservationFailed, payload: contracts.OperationFailed{OrderID: "order-1", Reason: "slot unavailable"}, call: "delivery_failed", reason: "slot unavailable", caused: true},
 		{name: "inventory released", messageType: contracts.MessageInventoryReleased, payload: contracts.OperationSucceeded{OrderID: "order-1"}, call: "inventory_released", caused: true},
-		{name: "payment refunded", messageType: contracts.MessagePaymentRefunded, payload: contracts.OperationSucceeded{OrderID: "order-1"}, call: "payment_refunded"},
+		{name: "payment refunded", messageType: contracts.MessagePaymentRefunded, payload: contracts.OperationSucceeded{OrderID: "order-1"}, call: "payment_refunded", caused: true},
 	}
 
 	for _, tt := range tests {

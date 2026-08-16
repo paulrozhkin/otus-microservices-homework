@@ -6,6 +6,7 @@ import (
 
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/contracts"
 	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/messaging/outbox"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/order-service/internal/entity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +64,7 @@ func TestSagaCommandMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "send notification", build: newNotificationMessage,
+			name: "send notification", build: newSuccessNotificationMessage,
 			topic: contracts.TopicNotificationCommands, messageType: contracts.MessageNotificationRequested,
 			assert: func(t *testing.T, raw json.RawMessage) {
 				payload := &contracts.SendNotification{}
@@ -89,6 +90,38 @@ func TestSagaCommandMessages(t *testing.T) {
 			require.Equal(t, "order-1", envelope.SagaID)
 			require.Equal(t, "result-message-id", envelope.CausationID)
 			tt.assert(t, envelope.Payload)
+		})
+	}
+}
+
+func TestFailureNotificationMessages(t *testing.T) {
+	order := &Order{ID: "order-1", UserID: 42, Email: "user@example.com"}
+	tests := []struct {
+		stage   string
+		subject string
+		body    string
+	}{
+		{stage: "billing", subject: "Order payment failed", body: "Payment for order order-1 was declined: insufficient funds"},
+		{stage: "warehouse", subject: "Order inventory reservation failed", body: "Product reservation for order order-1 failed; payment was refunded: product unavailable"},
+		{stage: "delivery", subject: "Order delivery reservation failed", body: "Delivery reservation for order order-1 failed; inventory was released and payment was refunded: slot unavailable"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.stage, func(t *testing.T) {
+			reason := map[string]string{
+				"billing": "insufficient funds", "warehouse": "product unavailable", "delivery": "slot unavailable",
+			}[tt.stage]
+			message, err := newFailureNotificationMessage(order, "result-message-id", entity.FailureStage(tt.stage), reason)
+			require.NoError(t, err)
+			require.Equal(t, contracts.TopicNotificationCommands, message.Topic)
+
+			envelope := &contracts.Envelope{}
+			require.NoError(t, json.Unmarshal([]byte(message.Payload), envelope))
+			payload := &contracts.SendNotification{}
+			require.NoError(t, json.Unmarshal(envelope.Payload, payload))
+			require.Equal(t, "failed", payload.OrderStatus)
+			require.Equal(t, tt.subject, payload.Subject)
+			require.Equal(t, tt.body, payload.Body)
 		})
 	}
 }

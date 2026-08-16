@@ -10,13 +10,13 @@ import (
 
 type SagaResultProcessor interface {
 	ApplyPaymentSucceeded(context.Context, string, string) error
-	ApplyPaymentFailed(context.Context, string, string) error
+	ApplyPaymentFailed(context.Context, string, string, string) error
 	ApplyInventoryReserved(context.Context, string, string) error
 	ApplyInventoryReservationFailed(context.Context, string, string, string) error
 	ApplyDeliveryReserved(context.Context, string, string) error
 	ApplyDeliveryReservationFailed(context.Context, string, string, string) error
 	ApplyInventoryReleased(context.Context, string, string) error
-	ApplyPaymentRefunded(context.Context, string) error
+	ApplyPaymentRefunded(context.Context, string, string) error
 }
 
 type SagaEventHandler struct {
@@ -49,7 +49,7 @@ func (h *SagaEventHandler) Handle(ctx context.Context, key, value []byte) error 
 		if err != nil {
 			return err
 		}
-		return h.processor.ApplyPaymentFailed(ctx, orderID, reason)
+		return h.processor.ApplyPaymentFailed(ctx, orderID, reason, envelope.MessageID)
 
 	case contracts.MessageInventoryReserved:
 		orderID, err := decodeSucceededResult(string(key), envelope)
@@ -91,7 +91,7 @@ func (h *SagaEventHandler) Handle(ctx context.Context, key, value []byte) error 
 		if err != nil {
 			return err
 		}
-		return h.processor.ApplyPaymentRefunded(ctx, orderID)
+		return h.processor.ApplyPaymentRefunded(ctx, orderID, envelope.MessageID)
 
 	default:
 		return fmt.Errorf("unsupported saga event type %q", envelope.MessageType)

@@ -212,29 +212,35 @@ components:
           type: string
     ReserveInventory:
       type: object
-      required: [orderId, productId]
+      required: [orderId, operationId, productId]
       properties:
         orderId:
           type: string
           format: uuid
+        operationId:
+          type: string
         productId:
           type: string
     ReleaseInventory:
       type: object
-      required: [orderId, productId]
+      required: [orderId, operationId, productId]
       properties:
         orderId:
           type: string
           format: uuid
+        operationId:
+          type: string
         productId:
           type: string
     ReserveDelivery:
       type: object
-      required: [orderId, courierId, deliverySlot]
+      required: [orderId, operationId, courierId, deliverySlot]
       properties:
         orderId:
           type: string
           format: uuid
+        operationId:
+          type: string
         courierId:
           type: string
         deliverySlot:

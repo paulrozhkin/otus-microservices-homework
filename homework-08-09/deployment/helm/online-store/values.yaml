@@ -60,6 +60,26 @@ order-service:
     OTUS_ORDER_SERVICE_KAFKA_GROUP_ID: order-service-saga-v1
     OTUS_ORDER_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
 
+warehouse-service:
+  enabled: true
+  componentName: warehouse-service
+  envPrefix: OTUS_WAREHOUSE_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-08-09-warehouse-service
+    tag: latest
+  service:
+    port: 8004
+  replicaCount: 2
+  database:
+    username: warehouse_service
+    password: warehouse_service
+    database: warehouse_service
+  extraEnv:
+    OTUS_WAREHOUSE_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_WAREHOUSE_SERVICE_KAFKA_TOPIC: warehouse.commands.v1
+    OTUS_WAREHOUSE_SERVICE_KAFKA_GROUP_ID: warehouse-service-v1
+    OTUS_WAREHOUSE_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
+
 notification-service:
   enabled: true
   componentName: notification-service

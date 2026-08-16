@@ -1,6 +1,6 @@
 apiVersion: v2
 name: online-store
-description: Order processing system with User, Billing, Order, Notification, PostgreSQL, and Kafka
+description: Order processing system with User, Billing, Warehouse, Order, Notification, PostgreSQL, and Kafka
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
@@ -20,6 +20,11 @@ dependencies:
     version: "0.1.0"
     repository: "file://subcharts/microservice"
     condition: order-service.enabled
+  - name: microservice
+    alias: warehouse-service
+    version: "0.1.0"
+    repository: "file://subcharts/microservice"
+    condition: warehouse-service.enabled
   - name: microservice
     alias: notification-service
     version: "0.1.0"

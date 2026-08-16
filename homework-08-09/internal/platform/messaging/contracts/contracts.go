@@ -92,17 +92,20 @@ type RefundPayment struct {
 }
 
 type ReserveInventory struct {
-	OrderID   string `json:"orderId"`
-	ProductID string `json:"productId"`
+	OrderID     string `json:"orderId"`
+	OperationID string `json:"operationId"`
+	ProductID   string `json:"productId"`
 }
 
 type ReleaseInventory struct {
-	OrderID   string `json:"orderId"`
-	ProductID string `json:"productId"`
+	OrderID     string `json:"orderId"`
+	OperationID string `json:"operationId"`
+	ProductID   string `json:"productId"`
 }
 
 type ReserveDelivery struct {
 	OrderID      string `json:"orderId"`
+	OperationID  string `json:"operationId"`
 	CourierID    string `json:"courierId"`
 	DeliverySlot string `json:"deliverySlot"`
 }

@@ -11,11 +11,14 @@ dependencies:
 - name: microservice
   repository: file://subcharts/microservice
   version: 0.1.0
+- name: microservice
+  repository: file://subcharts/microservice
+  version: 0.1.0
 - name: kafka-stack
   repository: file://subcharts/kafka-stack
   version: 0.1.0
 - name: ingress-nginx
   repository: https://kubernetes.github.io/ingress-nginx
   version: 4.15.1
-digest: sha256:80fcb63c47caa396a977a58feee1c73b4be43f453480d829d5b6d804694fccf0
-generated: "2026-08-12T20:18:51.9846765+03:00"
+digest: sha256:fb1b8714d380f2b165bdb8d59a6a9e3b06edd17f11400dea566cd7c803d1b6f0
+generated: "2026-08-16T18:16:10.2517524+03:00"

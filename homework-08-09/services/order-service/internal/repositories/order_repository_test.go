@@ -28,6 +28,7 @@ func TestSagaCommandMessages(t *testing.T) {
 				payload := &contracts.ReserveInventory{}
 				require.NoError(t, json.Unmarshal(raw, payload))
 				require.Equal(t, "product-1", payload.ProductID)
+				require.Equal(t, "order:order-1:inventory:reserve", payload.OperationID)
 			},
 		},
 		{
@@ -38,6 +39,7 @@ func TestSagaCommandMessages(t *testing.T) {
 				require.NoError(t, json.Unmarshal(raw, payload))
 				require.Equal(t, "courier-1", payload.CourierID)
 				require.Equal(t, "slot-1", payload.DeliverySlot)
+				require.Equal(t, "order:order-1:delivery:reserve", payload.OperationID)
 			},
 		},
 		{
@@ -47,6 +49,7 @@ func TestSagaCommandMessages(t *testing.T) {
 				payload := &contracts.ReleaseInventory{}
 				require.NoError(t, json.Unmarshal(raw, payload))
 				require.Equal(t, "product-1", payload.ProductID)
+				require.Equal(t, "order:order-1:inventory:release", payload.OperationID)
 			},
 		},
 		{

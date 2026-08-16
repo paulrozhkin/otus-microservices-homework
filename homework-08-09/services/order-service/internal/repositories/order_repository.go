@@ -52,7 +52,7 @@ func (r *OrderRepositoryImpl) ApplyPaymentSucceeded(ctx context.Context, orderID
 
 func newReserveInventoryMessage(order *Order, causationID string) (*outbox.Message, error) {
 	return newCommandMessage(contracts.TopicWarehouseCommands, contracts.MessageReserveInventoryRequested, order, causationID,
-		contracts.ReserveInventory{OrderID: order.ID, ProductID: order.ProductID})
+		contracts.ReserveInventory{OrderID: order.ID, OperationID: "order:" + order.ID + ":inventory:reserve", ProductID: order.ProductID})
 }
 
 func (r *OrderRepositoryImpl) ApplyPaymentFailed(ctx context.Context, orderID, reason string) error {
@@ -137,12 +137,12 @@ func (r *OrderRepositoryImpl) applyTransition(
 
 func newReserveDeliveryMessage(order *Order, causationID string) (*outbox.Message, error) {
 	return newCommandMessage(contracts.TopicDeliveryCommands, contracts.MessageReserveDeliveryRequested, order, causationID,
-		contracts.ReserveDelivery{OrderID: order.ID, CourierID: order.CourierID, DeliverySlot: order.DeliverySlot})
+		contracts.ReserveDelivery{OrderID: order.ID, OperationID: "order:" + order.ID + ":delivery:reserve", CourierID: order.CourierID, DeliverySlot: order.DeliverySlot})
 }
 
 func newReleaseInventoryMessage(order *Order, causationID string) (*outbox.Message, error) {
 	return newCommandMessage(contracts.TopicWarehouseCommands, contracts.MessageReleaseInventoryRequested, order, causationID,
-		contracts.ReleaseInventory{OrderID: order.ID, ProductID: order.ProductID})
+		contracts.ReleaseInventory{OrderID: order.ID, OperationID: "order:" + order.ID + ":inventory:release", ProductID: order.ProductID})
 }
 
 func newRefundPaymentMessage(order *Order, causationID string) (*outbox.Message, error) {

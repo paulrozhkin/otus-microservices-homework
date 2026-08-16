@@ -222,6 +222,72 @@ services:
     networks:
       - backend
 
+  warehouse-postgres:
+    image: postgres:16
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_DB: warehouse_service
+      POSTGRES_USER: warehouse_service
+      POSTGRES_PASSWORD: warehouse_service
+    volumes:
+      - warehouse-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U warehouse_service -d warehouse_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  warehouse-migrate:
+    build:
+      context: ../..
+      dockerfile: services/warehouse-service/Dockerfile
+    command: ["migrate"]
+    environment:
+      OTUS_WAREHOUSE_SERVICE_DB_HOST: warehouse-postgres
+      OTUS_WAREHOUSE_SERVICE_DB_PORT: 5432
+      OTUS_WAREHOUSE_SERVICE_DB_USER: warehouse_service
+      OTUS_WAREHOUSE_SERVICE_DB_PASSWORD: warehouse_service
+      OTUS_WAREHOUSE_SERVICE_DB_DBNAME: warehouse_service
+      OTUS_WAREHOUSE_SERVICE_DB_SSLMODE: disable
+    depends_on:
+      warehouse-postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  warehouse-service:
+    build:
+      context: ../..
+      dockerfile: services/warehouse-service/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      OTUS_WAREHOUSE_SERVICE_APP_NAME: warehouse-service
+      OTUS_WAREHOUSE_SERVICE_APP_ENV: development
+      OTUS_WAREHOUSE_SERVICE_HTTP_ADDR: 0.0.0.0:8004
+      OTUS_WAREHOUSE_SERVICE_DB_HOST: warehouse-postgres
+      OTUS_WAREHOUSE_SERVICE_DB_PORT: 5432
+      OTUS_WAREHOUSE_SERVICE_DB_USER: warehouse_service
+      OTUS_WAREHOUSE_SERVICE_DB_PASSWORD: warehouse_service
+      OTUS_WAREHOUSE_SERVICE_DB_DBNAME: warehouse_service
+      OTUS_WAREHOUSE_SERVICE_DB_SSLMODE: disable
+      OTUS_WAREHOUSE_SERVICE_KAFKA_BROKERS: kafka:29092
+      OTUS_WAREHOUSE_SERVICE_KAFKA_TOPIC: warehouse.commands.v1
+      OTUS_WAREHOUSE_SERVICE_KAFKA_GROUP_ID: warehouse-service-v1
+      OTUS_WAREHOUSE_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
+    depends_on:
+      warehouse-migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - monitoring
+      - backend
+
   order-migrate:
     build:
       context: ../..
@@ -404,5 +470,6 @@ volumes:
   billing-postgres-data:
   order-postgres-data:
   notification-postgres-data:
+  warehouse-postgres-data:
   prometheus_data:
   grafana-data:

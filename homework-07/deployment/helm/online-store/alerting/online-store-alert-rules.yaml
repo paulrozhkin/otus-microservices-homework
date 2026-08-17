@@ -1,0 +1,112 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: Online Store Evaluation Group
+    folder: Online Store Alerting
+    interval: 1m
+    rules:
+      - uid: online-store-high-error-rate
+        title: Online Store High Error Rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model:
+              datasource: {type: prometheus, uid: prometheus}
+              editorMode: code
+              expr: 100 * sum by (service) (rate(http_requests_total{namespace="online-store",status=~"5.."}[5m])) / clamp_min(sum by (service) (rate(http_requests_total{namespace="online-store"}[5m])), 0.001)
+              instant: true
+              intervalMs: 1000
+              refId: A
+          - refId: C
+            queryType: expression
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [5], type: gt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: '{{ $labels.service }} 5xx error rate is above 5%'
+        labels: {severity: warning}
+        isPaused: false
+      - uid: online-store-high-latency
+        title: Online Store High Latency
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model:
+              datasource: {type: prometheus, uid: prometheus}
+              editorMode: code
+              expr: histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket{namespace="online-store"}[5m])))
+              instant: true
+              intervalMs: 1000
+              refId: A
+          - refId: C
+            queryType: expression
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [0.5], type: gt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: '{{ $labels.service }} p95 latency is above 500ms'
+        labels: {severity: warning}
+        isPaused: false
+      - uid: online-store-service-down
+        title: Online Store Service Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              datasource: {type: prometheus, uid: prometheus}
+              editorMode: code
+              expr: up{namespace="online-store",service=~"online-store-(user|billing|order|notification)-service"}
+              instant: true
+              intervalMs: 1000
+              refId: A
+          - refId: C
+            queryType: expression
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [1], type: lt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: '{{ $labels.service }} is unavailable'
+        labels: {severity: critical}
+        isPaused: false

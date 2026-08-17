@@ -1,0 +1,129 @@
+global:
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+  appEnv: production
+
+user-service:
+  enabled: true
+  componentName: user-service
+  envPrefix: OTUS_USER_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-07-user-service
+    tag: latest
+  service:
+    port: 8000
+  replicaCount: 2
+  database:
+    username: user_service
+    password: user_service
+    database: user_service
+  extraEnv:
+    OTUS_USER_SERVICE_BILLING_BASE_URL: 'http://{{ .Release.Name }}-billing-service:8001'
+
+billing-service:
+  enabled: true
+  componentName: billing-service
+  envPrefix: OTUS_BILLING_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-07-billing-service
+    tag: latest
+  service:
+    port: 8001
+  replicaCount: 2
+  database:
+    username: billing_service
+    password: billing_service
+    database: billing_service
+
+order-service:
+  enabled: true
+  componentName: order-service
+  envPrefix: OTUS_ORDER_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-07-order-service
+    tag: latest
+  service:
+    port: 8002
+  replicaCount: 2
+  database:
+    username: order_service
+    password: order_service
+    database: order_service
+  extraEnv:
+    OTUS_ORDER_SERVICE_BILLING_BASE_URL: 'http://{{ .Release.Name }}-billing-service:8001'
+    OTUS_ORDER_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_ORDER_SERVICE_KAFKA_TOPIC: notification.requested.v1
+
+notification-service:
+  enabled: true
+  componentName: notification-service
+  envPrefix: OTUS_NOTIFICATION_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-07-notification-service
+    tag: latest
+  service:
+    port: 8003
+  replicaCount: 2
+  database:
+    username: notification_service
+    password: notification_service
+    database: notification_service
+  extraEnv:
+    OTUS_NOTIFICATION_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_NOTIFICATION_SERVICE_KAFKA_TOPIC: notification.requested.v1
+    OTUS_NOTIFICATION_SERVICE_KAFKA_GROUP_ID: notification-service-v1
+
+kafka:
+  enabled: true
+  componentName: kafka
+  image:
+    repository: apache/kafka
+    tag: "3.9.1"
+  topic:
+    name: notification.requested.v1
+    partitions: 2
+    replicationFactor: 1
+  persistence:
+    enabled: true
+    size: 500Mi
+    storageClass: ""
+  ui:
+    enabled: true
+    image:
+      repository: ghcr.io/kafbat/kafka-ui
+      tag: latest
+    port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  host: arch.homework
+  authResponseHeaders: X-Auth-UserId,X-Auth-User,X-Auth-Email,X-Auth-Roles
+  annotations: {}
+
+ingressNginx:
+  enabled: true
+
+observability:
+  grafanaDashboard:
+    enabled: true
+    namespace: monitoring
+    label: grafana_dashboard
+    labelValue: "1"
+  grafanaAlerting:
+    enabled: true
+    namespace: monitoring
+    label: grafana_alert
+    labelValue: "1"
+
+ingress-nginx:
+  controller:
+    kind: DaemonSet
+    reportNodeInternalIp: true
+    hostPort:
+      enabled: true
+      ports:
+        http: 80
+        https: 443
+    service:
+      type: NodePort

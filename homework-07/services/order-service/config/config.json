@@ -1,0 +1,30 @@
+{
+  "app": {
+    "name": "order-service",
+    "env": "development"
+  },
+  "http": {
+    "addr": "0.0.0.0:8002",
+    "readTimeout": "5s",
+    "writeTimeout": "10s",
+    "idleTimeout": "60s",
+    "shutdownTimeout": "15s"
+  },
+  "db": {
+    "host": "localhost",
+    "port": 5435,
+    "user": "order_service",
+    "password": "order_service",
+    "dbName": "order_service",
+    "sslmode": "disable",
+    "timeZone": "UTC"
+  },
+  "billing": {
+    "baseURL": "http://localhost:8001",
+    "responseTimeout": "5s"
+  },
+  "kafka": {
+    "brokers": "localhost:9092",
+    "topic": "notification.requested.v1"
+  }
+}

@@ -1,0 +1,643 @@
+{
+  "info": {
+    "_postman_id": "40e84b81-cd40-4a7c-86a6-21b5fd02fd83",
+    "name": "OTUS-homework-7-orders",
+    "description": "Homework 07 end-to-end scenario: create a user and billing account, deposit money, process paid and rejected orders, verify balances, and wait for Kafka-driven notifications.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log(`[request] ${pm.request.method} ${pm.variables.replaceIn(pm.request.url.toString())}`);",
+          "if (pm.request.body && pm.request.body.raw) {",
+          "    console.log(`[request body] ${pm.variables.replaceIn(pm.request.body.raw)}`);",
+          "}",
+          "console.log(`[response] ${pm.response.code} ${pm.response.status}`);",
+          "console.log(`[response body] ${pm.response.text()}`);"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "arch.homework",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "userLogin",
+      "value": ""
+    },
+    {
+      "key": "userPassword",
+      "value": ""
+    },
+    {
+      "key": "userEmail",
+      "value": ""
+    },
+    {
+      "key": "depositAmount",
+      "value": "10000"
+    },
+    {
+      "key": "depositOperationId",
+      "value": ""
+    },
+    {
+      "key": "successfulOrderPrice",
+      "value": "4000"
+    },
+    {
+      "key": "expectedBalanceAfterSuccess",
+      "value": "6000"
+    },
+    {
+      "key": "insufficientOrderPrice",
+      "value": "7000"
+    },
+    {
+      "key": "successfulOrderId",
+      "value": ""
+    },
+    {
+      "key": "rejectedOrderId",
+      "value": ""
+    },
+    {
+      "key": "notificationPollAttempt",
+      "value": "0"
+    },
+    {
+      "key": "notificationPollMaxAttempts",
+      "value": "10"
+    },
+    {
+      "key": "notificationPollDelayMs",
+      "value": "500"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Create user and billing account",
+      "item": [
+        {
+          "name": "01 Register user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = `${Date.now()}_${pm.variables.replaceIn('{{$randomInt}}')}`;",
+                  "pm.collectionVariables.set('userLogin', `billing_user_${suffix}`);",
+                  "pm.collectionVariables.set('userPassword', `pass_${suffix}`);",
+                  "pm.collectionVariables.set('userEmail', `billing_user_${suffix}@example.com`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('user registration returns 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('userId', json.id);",
+                  "",
+                  "pm.test('registered user has expected data', function () {",
+                  "    pm.expect(json.id).to.be.a('number').and.to.be.above(0);",
+                  "    pm.expect(json.username).to.eql(pm.collectionVariables.get('userLogin'));",
+                  "    pm.expect(json.email).to.eql(pm.collectionVariables.get('userEmail'));",
+                  "    pm.expect(json).to.not.have.property('passwordHash');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\",\n  \"email\": \"{{userEmail}}\",\n  \"firstName\": \"Billing\",\n  \"lastName\": \"User\",\n  \"phone\": \"+79990000000\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/register",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "02 Login user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('session cookie is set', function () {",
+                  "    pm.expect(pm.response.headers.get('Set-Cookie')).to.include('session_id=');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/login",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "03 Verify billing account was created",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('billing account belongs to the registered user and starts empty', function () {",
+                  "    pm.expect(json.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(json.balance).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Deposit money",
+      "item": [
+        {
+          "name": "04 Deposit money into billing account",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('depositOperationId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('deposit returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('deposit operation and resulting account are correct', function () {",
+                  "    pm.expect(json.operationId).to.eql(pm.collectionVariables.get('depositOperationId'));",
+                  "    pm.expect(json.account.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(json.account.balance).to.eql(Number(pm.collectionVariables.get('depositAmount')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": {{depositAmount}},\n  \"operationId\": \"{{depositOperationId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/deposits",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "deposits"
+              ]
+            }
+          }
+        },
+        {
+          "name": "05 Verify deposited balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('account contains deposited money', function () {",
+                  "    pm.expect(json.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(json.balance).to.eql(Number(pm.collectionVariables.get('depositAmount')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Create an order with sufficient funds",
+      "item": [
+        {
+          "name": "06 Create paid order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order creation returns 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('successfulOrderId', json.id);",
+                  "pm.test('order was paid', function () {",
+                  "    pm.expect(json.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(json.price).to.eql(Number(pm.collectionVariables.get('successfulOrderPrice')));",
+                  "    pm.expect(json.status).to.eql('paid');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{successfulOrderPrice}}\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "07 Verify balance after paid order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('paid order price was debited', function () {",
+                  "    pm.expect(json.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(json.balance).to.eql(Number(pm.collectionVariables.get('expectedBalanceAfterSuccess')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        },
+        {
+          "name": "08 Wait for paid order notification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('notification request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const notifications = pm.response.json();",
+                  "const orderId = pm.collectionVariables.get('successfulOrderId');",
+                  "const notification = notifications.find(item => item.orderId === orderId);",
+                  "const attempt = Number(pm.collectionVariables.get('notificationPollAttempt'));",
+                  "const maxAttempts = Number(pm.collectionVariables.get('notificationPollMaxAttempts'));",
+                  "if (notification) {",
+                  "    pm.collectionVariables.set('notificationPollAttempt', '0');",
+                  "    pm.test('success notification was stored', function () {",
+                  "        pm.expect(notification.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "        pm.expect(notification.email).to.eql(pm.collectionVariables.get('userEmail'));",
+                  "        pm.expect(notification.orderStatus).to.eql('paid');",
+                  "        pm.expect(notification.subject).to.eql('Order paid');",
+                  "    });",
+                  "} else if (attempt < maxAttempts) {",
+                  "    pm.collectionVariables.set('notificationPollAttempt', String(attempt + 1));",
+                  "    console.log(`[poll] paid notification is not ready, attempt ${attempt + 1}/${maxAttempts}`);",
+                  "    pm.execution.setNextRequest(pm.info.requestName);",
+                  "    setTimeout(function () {}, Number(pm.collectionVariables.get('notificationPollDelayMs')));",
+                  "} else {",
+                  "    pm.collectionVariables.set('notificationPollAttempt', '0');",
+                  "    pm.test('success notification was stored before timeout', function () {",
+                  "        pm.expect(notification, `notification for order ${orderId}`).to.exist;",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/notifications",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Create an order with insufficient funds",
+      "item": [
+        {
+          "name": "09 Create rejected order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejected order creation returns 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('rejectedOrderId', json.id);",
+                  "pm.test('order was rejected because funds are insufficient', function () {",
+                  "    pm.expect(json.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(json.price).to.eql(Number(pm.collectionVariables.get('insufficientOrderPrice')));",
+                  "    pm.expect(json.status).to.eql('rejected');",
+                  "    pm.expect(json.failureReason).to.include('insufficient funds');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{insufficientOrderPrice}}\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "10 Verify balance after rejected order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('rejected order did not change the balance', function () {",
+                  "    pm.expect(json.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(json.balance).to.eql(Number(pm.collectionVariables.get('expectedBalanceAfterSuccess')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        },
+        {
+          "name": "11 Wait for rejected order notification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('notification request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const notifications = pm.response.json();",
+                  "const orderId = pm.collectionVariables.get('rejectedOrderId');",
+                  "const notification = notifications.find(item => item.orderId === orderId);",
+                  "const attempt = Number(pm.collectionVariables.get('notificationPollAttempt'));",
+                  "const maxAttempts = Number(pm.collectionVariables.get('notificationPollMaxAttempts'));",
+                  "if (notification) {",
+                  "    pm.collectionVariables.set('notificationPollAttempt', '0');",
+                  "    pm.test('rejection notification was stored', function () {",
+                  "        pm.expect(notification.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "        pm.expect(notification.email).to.eql(pm.collectionVariables.get('userEmail'));",
+                  "        pm.expect(notification.orderStatus).to.eql('rejected');",
+                  "        pm.expect(notification.subject).to.eql('Order rejected');",
+                  "        pm.expect(notification.body).to.include('insufficient funds');",
+                  "    });",
+                  "} else if (attempt < maxAttempts) {",
+                  "    pm.collectionVariables.set('notificationPollAttempt', String(attempt + 1));",
+                  "    console.log(`[poll] rejected notification is not ready, attempt ${attempt + 1}/${maxAttempts}`);",
+                  "    pm.execution.setNextRequest(pm.info.requestName);",
+                  "    setTimeout(function () {}, Number(pm.collectionVariables.get('notificationPollDelayMs')));",
+                  "} else {",
+                  "    pm.collectionVariables.set('notificationPollAttempt', '0');",
+                  "    pm.test('rejection notification was stored before timeout', function () {",
+                  "        pm.expect(notification, `notification for order ${orderId}`).to.exist;",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/notifications",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -31,5 +31,5 @@ go.work.sum
 .idea/
 .vscode/
 
-# Helm
-/*/deployment/helm/users-service/charts/*
+# Downloaded Helm dependencies
+deployment/helm/*/charts/

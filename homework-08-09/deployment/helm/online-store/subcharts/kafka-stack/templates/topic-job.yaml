@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "kafka-stack.fullname" . }}-topic-init
+  labels:
+    {{- include "kafka-stack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: topic-init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "kafka-stack.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: topic-init
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: topic-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              kafka_topics=/opt/kafka/bin/kafka-topics.sh
+              bootstrap_server={{ printf "%s:29092" (include "kafka-stack.fullname" .) | quote }}
+              {{- range .Values.topics }}
+              topic={{ .name | quote }}
+              desired_partitions={{ .partitions | quote }}
+
+              if ! "$kafka_topics" --bootstrap-server "$bootstrap_server" --describe --topic "$topic" >/dev/null 2>&1; then
+                "$kafka_topics" --bootstrap-server "$bootstrap_server" \
+                  --create \
+                  --topic "$topic" \
+                  --partitions "$desired_partitions" \
+                  --replication-factor {{ .replicationFactor | quote }}
+              else
+                current_partitions=$("$kafka_topics" --bootstrap-server "$bootstrap_server" --describe --topic "$topic" | awk -F 'PartitionCount: ' 'NR == 1 { split($2, fields, " "); print fields[1] }')
+                if [ "$current_partitions" -lt "$desired_partitions" ]; then
+                  "$kafka_topics" --bootstrap-server "$bootstrap_server" \
+                    --alter \
+                    --topic "$topic" \
+                    --partitions "$desired_partitions"
+                elif [ "$current_partitions" -gt "$desired_partitions" ]; then
+                  echo "cannot decrease topic $topic from $current_partitions to $desired_partitions partitions" >&2
+                  exit 1
+                fi
+              fi
+              {{- end }}

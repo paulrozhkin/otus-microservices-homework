@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "microservice.fullname" . }}
+  labels:
+    {{- include "microservice.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "microservice.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "microservice.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.componentName }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: {{ .Values.envPrefix }}_APP_NAME
+              value: {{ .Values.componentName | quote }}
+            - name: {{ .Values.envPrefix }}_APP_ENV
+              value: {{ .Values.global.appEnv | quote }}
+            - name: {{ .Values.envPrefix }}_HTTP_ADDR
+              value: {{ printf "0.0.0.0:%v" .Values.service.port | quote }}
+            - name: {{ .Values.envPrefix }}_DB_HOST
+              value: {{ include "microservice.databaseName" . | quote }}
+            - name: {{ .Values.envPrefix }}_DB_PORT
+              value: "5432"
+            - name: {{ .Values.envPrefix }}_DB_USER
+              value: {{ .Values.database.username | quote }}
+            - name: {{ .Values.envPrefix }}_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "microservice.secretName" . }}
+                  key: db-password
+            - name: {{ .Values.envPrefix }}_DB_DBNAME
+              value: {{ .Values.database.database | quote }}
+            - name: {{ .Values.envPrefix }}_DB_SSLMODE
+              value: disable
+            - name: {{ .Values.envPrefix }}_DB_TIMEZONE
+              value: UTC
+            - name: {{ .Values.envPrefix }}_DB_STARTUP_TIMEOUT
+              value: {{ .Values.database.startupTimeout | quote }}
+            - name: {{ .Values.envPrefix }}_DB_RETRY_INTERVAL
+              value: {{ .Values.database.retryInterval | quote }}
+            {{- range $name, $value := .Values.extraEnv }}
+            - name: {{ $name }}
+              value: {{ tpl $value $ | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "microservice.fullname" . }}
+  labels:
+    {{- include "microservice.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+  selector:
+    {{- include "microservice.selectorLabels" . | nindent 4 }}

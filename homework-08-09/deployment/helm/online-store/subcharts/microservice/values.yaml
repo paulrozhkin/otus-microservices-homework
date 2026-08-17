@@ -1,0 +1,53 @@
+global:
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+  appEnv: production
+
+enabled: true
+componentName: service
+envPrefix: OTUS_SERVICE
+replicaCount: 1
+
+image:
+  repository: example/service
+  tag: latest
+  pullPolicy: ""
+
+service:
+  port: 8000
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+  annotations: {}
+
+database:
+  startupTimeout: 60s
+  retryInterval: 1s
+  image:
+    repository: postgres
+    tag: "16"
+  username: service
+  password: service
+  database: service
+  persistence:
+    enabled: true
+    size: 500Mi
+    storageClass: ""
+  resources: {}
+
+migration:
+  enabled: true
+  backoffLimit: 6
+
+extraEnv: {}
+resources: {}
+probes:
+  startup:
+    periodSeconds: 5
+    failureThreshold: 18
+nodeSelector: {}
+tolerations: []
+affinity: {}

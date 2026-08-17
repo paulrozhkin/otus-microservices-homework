@@ -1,0 +1,72 @@
+sequenceDiagram
+    autonumber
+    actor Client
+    participant Gateway as nginx Ingress
+    participant User as User Service
+    participant Order as Order Service
+    participant OrderDB as Order PostgreSQL
+    participant Kafka
+    participant Billing as Billing Service
+    participant Warehouse as Warehouse Service
+    participant Delivery as Delivery Service
+    participant Notification as Notification Service
+
+    Client->>Gateway: POST /api/v1/orders<br/>Idempotency-Key + session_id
+    Gateway->>User: GET /auth
+    User-->>Gateway: X-Auth-UserId + X-Auth-Email
+    Gateway->>Order: Create order
+    Order->>OrderDB: TX: idempotency key + order(payment_pending)<br/>+ billing command in outbox
+    Order-->>Client: 202 Accepted
+
+    OrderDB-->>Kafka: billing.commands.v1
+    Kafka-->>Billing: charge payment
+
+    alt Payment failed
+        Billing-->>Kafka: order.saga.events.v1: payment.failed
+        Kafka-->>Order: payment.failed
+        Order->>OrderDB: TX: status=failed, failureStage=billing<br/>+ notification command
+    else Payment succeeded
+        Billing-->>Kafka: order.saga.events.v1: payment.succeeded
+        Kafka-->>Order: payment.succeeded
+        Order->>OrderDB: TX: status=inventory_pending<br/>+ warehouse command
+        OrderDB-->>Kafka: warehouse.commands.v1
+        Kafka-->>Warehouse: reserve productId
+
+        alt Inventory failed
+            Warehouse-->>Kafka: order.saga.events.v1: inventory.reservation_failed
+            Kafka-->>Order: inventory.reservation_failed
+            Order->>OrderDB: TX: status=payment_refunding<br/>+ refund command
+            Kafka-->>Billing: refund payment
+            Billing-->>Kafka: order.saga.events.v1: payment.refunded
+            Kafka-->>Order: payment.refunded
+            Order->>OrderDB: TX: status=failed, failureStage=warehouse<br/>+ notification command
+        else Inventory reserved
+            Warehouse-->>Kafka: order.saga.events.v1: inventory.reserved
+            Kafka-->>Order: inventory.reserved
+            Order->>OrderDB: TX: status=delivery_pending<br/>+ delivery command
+            OrderDB-->>Kafka: delivery.commands.v1
+            Kafka-->>Delivery: reserve courierId + deliverySlot
+
+            alt Delivery failed
+                Delivery-->>Kafka: order.saga.events.v1: delivery.reservation_failed
+                Kafka-->>Order: delivery.reservation_failed
+                Order->>OrderDB: TX: status=inventory_releasing<br/>+ release command
+                Kafka-->>Warehouse: release product
+                Warehouse-->>Kafka: order.saga.events.v1: inventory.released
+                Kafka-->>Order: inventory.released
+                Order->>OrderDB: TX: status=payment_refunding<br/>+ refund command
+                Kafka-->>Billing: refund payment
+                Billing-->>Kafka: order.saga.events.v1: payment.refunded
+                Kafka-->>Order: payment.refunded
+                Order->>OrderDB: TX: status=failed, failureStage=delivery<br/>+ notification command
+            else Delivery reserved
+                Delivery-->>Kafka: order.saga.events.v1: delivery.reserved
+                Kafka-->>Order: delivery.reserved
+                Order->>OrderDB: TX: status=completed<br/>+ notification command
+            end
+        end
+    end
+
+    OrderDB-->>Kafka: notification.commands.v1
+    Kafka-->>Notification: notification.commands.v1
+    Notification->>Notification: idempotent save by eventId

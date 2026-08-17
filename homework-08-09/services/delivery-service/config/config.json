@@ -1,0 +1,7 @@
+{
+  "app": {"name": "delivery-service", "env": "development"},
+  "http": {"addr": "0.0.0.0:8005", "readTimeout": "5s", "writeTimeout": "10s", "idleTimeout": "60s", "shutdownTimeout": "15s"},
+  "db": {"host": "localhost", "port": 5438, "user": "delivery_service", "password": "delivery_service", "dbName": "delivery_service", "sslmode": "disable", "timeZone": "UTC"},
+  "kafka": {"brokers": "localhost:9092", "topic": "delivery.commands.v1", "groupId": "delivery-service-v1"},
+  "outbox": {"pollInterval": "500ms"}
+}

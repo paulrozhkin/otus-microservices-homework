@@ -1,0 +1,194 @@
+global:
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+  appEnv: production
+
+user-service:
+  enabled: true
+  componentName: user-service
+  envPrefix: OTUS_USER_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-08-09-user-service
+    tag: latest
+  service:
+    port: 8000
+  replicaCount: 2
+  database:
+    username: user_service
+    password: user_service
+    database: user_service
+  extraEnv:
+    OTUS_USER_SERVICE_BILLING_BASE_URL: 'http://{{ .Release.Name }}-billing-service:8001'
+
+billing-service:
+  enabled: true
+  componentName: billing-service
+  envPrefix: OTUS_BILLING_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-08-09-billing-service
+    tag: latest
+  service:
+    port: 8001
+  replicaCount: 2
+  database:
+    username: billing_service
+    password: billing_service
+    database: billing_service
+  extraEnv:
+    OTUS_BILLING_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_BILLING_SERVICE_KAFKA_TOPIC: billing.commands.v1
+    OTUS_BILLING_SERVICE_KAFKA_GROUP_ID: billing-service-v1
+    OTUS_BILLING_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
+
+order-service:
+  enabled: true
+  componentName: order-service
+  envPrefix: OTUS_ORDER_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-08-09-order-service
+    tag: latest
+  service:
+    port: 8002
+  replicaCount: 2
+  database:
+    username: order_service
+    password: order_service
+    database: order_service
+  extraEnv:
+    OTUS_ORDER_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_ORDER_SERVICE_KAFKA_TOPIC: order.saga.events.v1
+    OTUS_ORDER_SERVICE_KAFKA_GROUP_ID: order-service-saga-v1
+    OTUS_ORDER_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
+
+warehouse-service:
+  enabled: true
+  componentName: warehouse-service
+  envPrefix: OTUS_WAREHOUSE_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-08-09-warehouse-service
+    tag: latest
+  service:
+    port: 8004
+  replicaCount: 2
+  database:
+    username: warehouse_service
+    password: warehouse_service
+    database: warehouse_service
+  extraEnv:
+    OTUS_WAREHOUSE_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_WAREHOUSE_SERVICE_KAFKA_TOPIC: warehouse.commands.v1
+    OTUS_WAREHOUSE_SERVICE_KAFKA_GROUP_ID: warehouse-service-v1
+    OTUS_WAREHOUSE_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
+
+delivery-service:
+  enabled: true
+  componentName: delivery-service
+  envPrefix: OTUS_DELIVERY_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-08-09-delivery-service
+    tag: latest
+  service:
+    port: 8005
+  replicaCount: 2
+  database:
+    username: delivery_service
+    password: delivery_service
+    database: delivery_service
+  extraEnv:
+    OTUS_DELIVERY_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_DELIVERY_SERVICE_KAFKA_TOPIC: delivery.commands.v1
+    OTUS_DELIVERY_SERVICE_KAFKA_GROUP_ID: delivery-service-v1
+    OTUS_DELIVERY_SERVICE_OUTBOX_POLL_INTERVAL: 500ms
+
+notification-service:
+  enabled: true
+  componentName: notification-service
+  envPrefix: OTUS_NOTIFICATION_SERVICE
+  image:
+    repository: paulrozhkin/otus-microservices-homework-08-09-notification-service
+    tag: latest
+  service:
+    port: 8003
+  replicaCount: 2
+  database:
+    username: notification_service
+    password: notification_service
+    database: notification_service
+  extraEnv:
+    OTUS_NOTIFICATION_SERVICE_KAFKA_BROKERS: '{{ .Release.Name }}-kafka:29092'
+    OTUS_NOTIFICATION_SERVICE_KAFKA_TOPIC: notification.commands.v1
+    OTUS_NOTIFICATION_SERVICE_KAFKA_GROUP_ID: notification-service-v1
+
+kafka:
+  enabled: true
+  componentName: kafka
+  image:
+    repository: apache/kafka
+    tag: "3.9.1"
+  defaultPartitions: 2
+  topics:
+    - name: billing.commands.v1
+      partitions: 2
+      replicationFactor: 1
+    - name: warehouse.commands.v1
+      partitions: 2
+      replicationFactor: 1
+    - name: delivery.commands.v1
+      partitions: 2
+      replicationFactor: 1
+    - name: order.saga.events.v1
+      partitions: 2
+      replicationFactor: 1
+    - name: notification.commands.v1
+      partitions: 2
+      replicationFactor: 1
+  persistence:
+    enabled: true
+    size: 500Mi
+    storageClass: ""
+  ui:
+    enabled: true
+    image:
+      repository: ghcr.io/kafbat/kafka-ui
+      tag: latest
+    port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  host: arch.homework
+  authResponseHeaders: X-Auth-UserId,X-Auth-User,X-Auth-Email,X-Auth-Roles
+  annotations: {}
+
+ingressNginx:
+  enabled: true
+
+observability:
+  grafanaDatasource:
+    enabled: true
+    namespace: monitoring
+    label: grafana_datasource
+    labelValue: "1"
+    lokiUrl: http://loki-gateway.monitoring.svc.cluster.local
+  grafanaDashboard:
+    enabled: true
+    namespace: monitoring
+    label: grafana_dashboard
+    labelValue: "1"
+  grafanaAlerting:
+    enabled: true
+    namespace: monitoring
+    label: grafana_alert
+    labelValue: "1"
+
+ingress-nginx:
+  controller:
+    kind: DaemonSet
+    reportNodeInternalIp: true
+    hostPort:
+      enabled: true
+      ports:
+        http: 80
+        https: 443
+    service:
+      type: NodePort

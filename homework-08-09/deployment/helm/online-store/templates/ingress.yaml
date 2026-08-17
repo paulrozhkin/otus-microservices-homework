@@ -1,0 +1,92 @@
+{{- if .Values.ingress.enabled }}
+{{- $user := index .Values "user-service" }}
+{{- $userService := include "online-store.componentName" (dict "root" . "component" "user-service") }}
+{{- $authURL := printf "http://%s.%s.svc.cluster.local:%v/auth" $userService .Release.Namespace $user.service.port }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "online-store.fullname" . }}-public
+  labels:
+    {{- include "online-store.labels" (dict "root" . "component" "public-ingress") | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- range $path := list "/register" "/login" "/logout" "/auth" }}
+          - path: {{ $path }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $userService }}
+                port:
+                  number: {{ $user.service.port }}
+          {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "online-store.fullname" . }}-user-protected
+  labels:
+    {{- include "online-store.labels" (dict "root" . "component" "user-ingress") | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/auth-url: {{ $authURL | quote }}
+    nginx.ingress.kubernetes.io/auth-response-headers: {{ .Values.ingress.authResponseHeaders | quote }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- range $path := list "/api/v1/profile" "/api/v1/users" }}
+          - path: {{ $path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $userService }}
+                port:
+                  number: {{ $user.service.port }}
+          {{- end }}
+---
+{{- range $key := list "billing" "order" "notification" }}
+{{- $component := printf "%s-service" $key }}
+{{- $service := index $.Values $component }}
+{{- $path := printf "/api/v1/%s" $key }}
+{{- if eq $key "order" }}{{- $path = "/api/v1/orders" }}{{- end }}
+{{- if eq $key "notification" }}{{- $path = "/api/v1/notifications" }}{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "online-store.fullname" $ }}-{{ $key }}-protected
+  labels:
+    {{- include "online-store.labels" (dict "root" $ "component" (printf "%s-ingress" $key)) | nindent 4 }}
+  annotations:
+    {{- with $.Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/auth-url: {{ $authURL | quote }}
+    nginx.ingress.kubernetes.io/auth-response-headers: {{ $.Values.ingress.authResponseHeaders | quote }}
+spec:
+  ingressClassName: {{ $.Values.ingress.className }}
+  rules:
+    - host: {{ $.Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ $path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "online-store.componentName" (dict "root" $ "component" $component) }}
+                port:
+                  number: {{ $service.service.port }}
+---
+{{- end }}
+{{- end }}

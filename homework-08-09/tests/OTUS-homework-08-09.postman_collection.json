@@ -1,0 +1,1480 @@
+{
+  "info": {
+    "_postman_id": "40e84b81-cd40-4a7c-86a6-21b5fd02fd83",
+    "name": "OTUS-homework-08-09-saga-idempotency",
+    "description": "Homework 08 and 09 E2E tests: orchestrated Kafka Saga, compensations, Transactional Outbox, and HTTP Idempotency-Key with request payload hash.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log('[request] ' + pm.request.method + ' ' + pm.variables.replaceIn(pm.request.url.toString()));",
+          "if (pm.request.body && pm.request.body.raw) {",
+          "    console.log('[request body] ' + pm.variables.replaceIn(pm.request.body.raw));",
+          "}",
+          "console.log('[response] ' + pm.response.code + ' ' + pm.response.status);",
+          "const responseRequestId = pm.response.headers.get('X-Request-ID');",
+          "if (responseRequestId) { console.log('[response X-Request-ID] ' + responseRequestId); }",
+          "console.log('[response body] ' + pm.response.text());"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "arch.homework",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "userLogin",
+      "value": ""
+    },
+    {
+      "key": "userPassword",
+      "value": ""
+    },
+    {
+      "key": "userEmail",
+      "value": ""
+    },
+    {
+      "key": "depositAmount",
+      "value": "50000"
+    },
+    {
+      "key": "depositOperationId",
+      "value": ""
+    },
+    {
+      "key": "orderPrice",
+      "value": "4000"
+    },
+    {
+      "key": "insufficientOrderPrice",
+      "value": "50000"
+    },
+    {
+      "key": "expectedBalanceAfterFirstSuccess",
+      "value": "46000"
+    },
+    {
+      "key": "expectedFinalBalance",
+      "value": "42000"
+    },
+    {
+      "key": "successProduct",
+      "value": ""
+    },
+    {
+      "key": "successCourier",
+      "value": ""
+    },
+    {
+      "key": "successSlot",
+      "value": ""
+    },
+    {
+      "key": "deliveryFailureProduct",
+      "value": ""
+    },
+    {
+      "key": "recoveryCourier",
+      "value": ""
+    },
+    {
+      "key": "recoverySlot",
+      "value": ""
+    },
+    {
+      "key": "billingFailureProduct",
+      "value": ""
+    },
+    {
+      "key": "billingFailureCourier",
+      "value": ""
+    },
+    {
+      "key": "billingFailureSlot",
+      "value": ""
+    },
+    {
+      "key": "successIdempotencyKey",
+      "value": ""
+    },
+    {
+      "key": "warehouseFailureIdempotencyKey",
+      "value": ""
+    },
+    {
+      "key": "deliveryFailureIdempotencyKey",
+      "value": ""
+    },
+    {
+      "key": "recoveryIdempotencyKey",
+      "value": ""
+    },
+    {
+      "key": "billingFailureIdempotencyKey",
+      "value": ""
+    },
+    {
+      "key": "successfulOrderId",
+      "value": ""
+    },
+    {
+      "key": "warehouseFailureOrderId",
+      "value": ""
+    },
+    {
+      "key": "deliveryFailureOrderId",
+      "value": ""
+    },
+    {
+      "key": "recoveryOrderId",
+      "value": ""
+    },
+    {
+      "key": "billingFailureOrderId",
+      "value": ""
+    },
+    {
+      "key": "pollAttempt",
+      "value": "0"
+    },
+    {
+      "key": "pollMaxAttempts",
+      "value": "30"
+    },
+    {
+      "key": "pollDelayMs",
+      "value": "500"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Setup user and balance",
+      "item": [
+        {
+          "name": "01 Register user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = Date.now() + '_' + pm.variables.replaceIn('{{$randomInt}}');",
+                  "pm.collectionVariables.set('userLogin', 'saga_user_' + suffix);",
+                  "pm.collectionVariables.set('userPassword', 'pass_' + suffix);",
+                  "pm.collectionVariables.set('userEmail', 'saga_user_' + suffix + '@example.com');",
+                  "pm.collectionVariables.set('depositOperationId', 'deposit-' + suffix);",
+                  "pm.collectionVariables.set('successProduct', 'product-success-' + suffix);",
+                  "pm.collectionVariables.set('successCourier', 'courier-primary-' + suffix);",
+                  "pm.collectionVariables.set('successSlot', 'slot-primary-' + suffix);",
+                  "pm.collectionVariables.set('deliveryFailureProduct', 'product-release-' + suffix);",
+                  "pm.collectionVariables.set('recoveryCourier', 'courier-recovery-' + suffix);",
+                  "pm.collectionVariables.set('recoverySlot', 'slot-recovery-' + suffix);",
+                  "pm.collectionVariables.set('billingFailureProduct', 'product-billing-failure-' + suffix);",
+                  "pm.collectionVariables.set('billingFailureCourier', 'courier-billing-failure-' + suffix);",
+                  "pm.collectionVariables.set('billingFailureSlot', 'slot-billing-failure-' + suffix);",
+                  "pm.collectionVariables.set('successIdempotencyKey', 'create-success-' + suffix);",
+                  "pm.collectionVariables.set('warehouseFailureIdempotencyKey', 'create-warehouse-failure-' + suffix);",
+                  "pm.collectionVariables.set('deliveryFailureIdempotencyKey', 'create-delivery-failure-' + suffix);",
+                  "pm.collectionVariables.set('recoveryIdempotencyKey', 'create-recovery-' + suffix);",
+                  "pm.collectionVariables.set('billingFailureIdempotencyKey', 'create-billing-failure-' + suffix);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('user registration returns 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const user = pm.response.json();",
+                  "pm.collectionVariables.set('userId', user.id);",
+                  "pm.test('registered user has expected data', function () {",
+                  "    pm.expect(user.id).to.be.a('number').and.to.be.above(0);",
+                  "    pm.expect(user.username).to.eql(pm.collectionVariables.get('userLogin'));",
+                  "    pm.expect(user.email).to.eql(pm.collectionVariables.get('userEmail'));",
+                  "    pm.expect(user).to.not.have.property('passwordHash');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\",\n  \"email\": \"{{userEmail}}\",\n  \"firstName\": \"Saga\",\n  \"lastName\": \"Test\",\n  \"phone\": \"+79990000000\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/register",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "02 Login user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('session cookie is set', function () {",
+                  "    pm.expect(pm.response.headers.get('Set-Cookie')).to.include('session_id=');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/login",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "03 Initial billing account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account exists with zero balance', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const account = pm.response.json();",
+                  "    pm.expect(account.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(account.balance).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        },
+        {
+          "name": "04 Deposit funds",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('deposit returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const result = pm.response.json();",
+                  "pm.test('deposit was applied', function () {",
+                  "    pm.expect(result.operationId).to.eql(pm.collectionVariables.get('depositOperationId'));",
+                  "    pm.expect(result.account.balance).to.eql(Number(pm.collectionVariables.get('depositAmount')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": {{depositAmount}},\n  \"operationId\": \"{{depositOperationId}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/deposits",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "deposits"
+              ]
+            }
+          }
+        },
+        {
+          "name": "05 Verify funded balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('funded balance is available', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().balance).to.eql(Number(pm.collectionVariables.get('depositAmount')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Successful Saga and HTTP idempotency",
+      "item": [
+        {
+          "name": "06 Create successful order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order creation returns 202', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "const order = pm.response.json();",
+                  "pm.collectionVariables.set('successfulOrderId', order.id);",
+                  "pm.collectionVariables.set('pollAttempt', '0');",
+                  "pm.test('order saga was accepted', function () {",
+                  "    pm.expect(order.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(order.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(order.price).to.eql(Number(pm.collectionVariables.get('orderPrice')));",
+                  "    pm.expect(['payment_pending', 'inventory_pending', 'delivery_pending', 'completed']).to.include(order.status);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{successIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{orderPrice}},\n  \"productId\": \"{{successProduct}}\",\n  \"courierId\": \"{{successCourier}}\",\n  \"deliverySlot\": \"{{successSlot}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "07 Replay same Idempotency-Key and payload",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('idempotent replay returns 202', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "const order = pm.response.json();",
+                  "pm.test('replay returns the original order', function () {",
+                  "    pm.expect(order.id).to.eql(pm.collectionVariables.get('successfulOrderId'));",
+                  "    pm.expect(order.price).to.eql(Number(pm.collectionVariables.get('orderPrice')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{successIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{orderPrice}},\n  \"productId\": \"{{successProduct}}\",\n  \"courierId\": \"{{successCourier}}\",\n  \"deliverySlot\": \"{{successSlot}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "08 Reject changed payload for same Idempotency-Key",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('conflictingOrderPrice', Number(pm.collectionVariables.get('orderPrice')) + 1);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('changed payload returns 409', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test('response explains idempotency conflict', function () {",
+                  "    const error = pm.response.json();",
+                  "    pm.expect(error.code).to.eql(409);",
+                  "    pm.expect(error.message).to.include('Idempotency-Key');",
+                  "    pm.expect(error.message).to.include('another payload');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{successIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{conflictingOrderPrice}},\n  \"productId\": \"{{successProduct}}\",\n  \"courierId\": \"{{successCourier}}\",\n  \"deliverySlot\": \"{{successSlot}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "09 Wait for successful Saga",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const order = pm.response.json();",
+                  "    const expectedId = pm.collectionVariables.get('successfulOrderId');",
+                  "    const attempt = Number(pm.collectionVariables.get('pollAttempt'));",
+                  "    const maxAttempts = Number(pm.collectionVariables.get('pollMaxAttempts'));",
+                  "    pm.expect(order.id).to.eql(expectedId);",
+                  "",
+                  "    if (order.status === 'completed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached completed', function () {",
+                  "            pm.expect(order.status).to.eql('completed');",
+                  "        });",
+                  "    } else if (order.status === 'completed' || order.status === 'failed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order did not reach an unexpected terminal state', function () {",
+                  "            pm.expect.fail('expected completed, got ' + order.status + ': ' + (order.failureReason || ''));",
+                  "        });",
+                  "    } else if (attempt < maxAttempts) {",
+                  "        pm.collectionVariables.set('pollAttempt', String(attempt + 1));",
+                  "        console.log('[poll] order ' + expectedId + ' is ' + order.status + ', attempt ' + (attempt + 1) + '/' + maxAttempts);",
+                  "        pm.execution.setNextRequest(pm.info.requestName);",
+                  "        setTimeout(function () {}, Number(pm.collectionVariables.get('pollDelayMs')));",
+                  "    } else {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached terminal state before timeout', function () {",
+                  "            pm.expect.fail('order ' + expectedId + ' is still ' + order.status);",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders/{{successfulOrderId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{successfulOrderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "10 Wait for success notification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('notification request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "    const notifications = pm.response.json();",
+                  "    const orderId = pm.collectionVariables.get('successfulOrderId');",
+                  "    const notification = notifications.find(function (item) { return item.orderId === orderId; });",
+                  "    const attempt = Number(pm.collectionVariables.get('pollAttempt'));",
+                  "    const maxAttempts = Number(pm.collectionVariables.get('pollMaxAttempts'));",
+                  "    if (notification) {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('completed order notification was stored', function () {",
+                  "            pm.expect(notification.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "            pm.expect(notification.email).to.eql(pm.collectionVariables.get('userEmail'));",
+                  "            pm.expect(notification.orderStatus).to.eql('completed');",
+                  "            pm.expect(notification.subject).to.eql('Order completed');",
+                  "        });",
+                  "    } else if (attempt < maxAttempts) {",
+                  "        pm.collectionVariables.set('pollAttempt', String(attempt + 1));",
+                  "        pm.execution.setNextRequest(pm.info.requestName);",
+                  "        setTimeout(function () {}, Number(pm.collectionVariables.get('pollDelayMs')));",
+                  "    } else {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('notification arrived before timeout', function () {",
+                  "            pm.expect.fail('notification for order ' + orderId + ' was not found');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/notifications",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          }
+        },
+        {
+          "name": "11 Verify one charge after replay",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const account = pm.response.json();",
+                  "pm.test('balance has expected value', function () {",
+                  "    pm.expect(account.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(account.balance).to.eql(Number(pm.collectionVariables.get('expectedBalanceAfterFirstSuccess')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Warehouse failure and payment compensation",
+      "item": [
+        {
+          "name": "12 Create order with already reserved product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order creation returns 202', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "const order = pm.response.json();",
+                  "pm.collectionVariables.set('warehouseFailureOrderId', order.id);",
+                  "pm.collectionVariables.set('pollAttempt', '0');",
+                  "pm.test('order saga was accepted', function () {",
+                  "    pm.expect(order.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(order.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(order.price).to.eql(Number(pm.collectionVariables.get('orderPrice')));",
+                  "    pm.expect(['payment_pending', 'inventory_pending', 'delivery_pending', 'completed']).to.include(order.status);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{warehouseFailureIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{orderPrice}},\n  \"productId\": \"{{successProduct}}\",\n  \"courierId\": \"{{recoveryCourier}}\",\n  \"deliverySlot\": \"{{recoverySlot}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "13 Wait for Warehouse compensation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const order = pm.response.json();",
+                  "    const expectedId = pm.collectionVariables.get('warehouseFailureOrderId');",
+                  "    const attempt = Number(pm.collectionVariables.get('pollAttempt'));",
+                  "    const maxAttempts = Number(pm.collectionVariables.get('pollMaxAttempts'));",
+                  "    pm.expect(order.id).to.eql(expectedId);",
+                  "",
+                  "    if (order.status === 'failed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached failed', function () {",
+                  "            pm.expect(order.status).to.eql('failed');",
+                  "            pm.expect(order.failureStage).to.eql('warehouse');",
+                  "            pm.expect(order.failureReason).to.include('product is already reserved');",
+                  "        });",
+                  "    } else if (order.status === 'completed' || order.status === 'failed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order did not reach an unexpected terminal state', function () {",
+                  "            pm.expect.fail('expected failed, got ' + order.status + ': ' + (order.failureReason || ''));",
+                  "        });",
+                  "    } else if (attempt < maxAttempts) {",
+                  "        pm.collectionVariables.set('pollAttempt', String(attempt + 1));",
+                  "        console.log('[poll] order ' + expectedId + ' is ' + order.status + ', attempt ' + (attempt + 1) + '/' + maxAttempts);",
+                  "        pm.execution.setNextRequest(pm.info.requestName);",
+                  "        setTimeout(function () {}, Number(pm.collectionVariables.get('pollDelayMs')));",
+                  "    } else {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached terminal state before timeout', function () {",
+                  "            pm.expect.fail('order ' + expectedId + ' is still ' + order.status);",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders/{{warehouseFailureOrderId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{warehouseFailureOrderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "14 Verify payment was refunded after Warehouse failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const account = pm.response.json();",
+                  "pm.test('balance has expected value', function () {",
+                  "    pm.expect(account.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(account.balance).to.eql(Number(pm.collectionVariables.get('expectedBalanceAfterFirstSuccess')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Delivery failure, inventory release, and recovery",
+      "item": [
+        {
+          "name": "15 Create order with occupied courier slot",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order creation returns 202', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "const order = pm.response.json();",
+                  "pm.collectionVariables.set('deliveryFailureOrderId', order.id);",
+                  "pm.collectionVariables.set('pollAttempt', '0');",
+                  "pm.test('order saga was accepted', function () {",
+                  "    pm.expect(order.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(order.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(order.price).to.eql(Number(pm.collectionVariables.get('orderPrice')));",
+                  "    pm.expect(['payment_pending', 'inventory_pending', 'delivery_pending', 'completed']).to.include(order.status);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{deliveryFailureIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{orderPrice}},\n  \"productId\": \"{{deliveryFailureProduct}}\",\n  \"courierId\": \"{{successCourier}}\",\n  \"deliverySlot\": \"{{successSlot}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "16 Wait for Delivery compensation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const order = pm.response.json();",
+                  "    const expectedId = pm.collectionVariables.get('deliveryFailureOrderId');",
+                  "    const attempt = Number(pm.collectionVariables.get('pollAttempt'));",
+                  "    const maxAttempts = Number(pm.collectionVariables.get('pollMaxAttempts'));",
+                  "    pm.expect(order.id).to.eql(expectedId);",
+                  "",
+                  "    if (order.status === 'failed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached failed', function () {",
+                  "            pm.expect(order.status).to.eql('failed');",
+                  "            pm.expect(order.failureStage).to.eql('delivery');",
+                  "            pm.expect(order.failureReason).to.include('courier slot is already reserved');",
+                  "        });",
+                  "    } else if (order.status === 'completed' || order.status === 'failed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order did not reach an unexpected terminal state', function () {",
+                  "            pm.expect.fail('expected failed, got ' + order.status + ': ' + (order.failureReason || ''));",
+                  "        });",
+                  "    } else if (attempt < maxAttempts) {",
+                  "        pm.collectionVariables.set('pollAttempt', String(attempt + 1));",
+                  "        console.log('[poll] order ' + expectedId + ' is ' + order.status + ', attempt ' + (attempt + 1) + '/' + maxAttempts);",
+                  "        pm.execution.setNextRequest(pm.info.requestName);",
+                  "        setTimeout(function () {}, Number(pm.collectionVariables.get('pollDelayMs')));",
+                  "    } else {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached terminal state before timeout', function () {",
+                  "            pm.expect.fail('order ' + expectedId + ' is still ' + order.status);",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders/{{deliveryFailureOrderId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{deliveryFailureOrderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "17 Verify payment was refunded after Delivery failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const account = pm.response.json();",
+                  "pm.test('balance has expected value', function () {",
+                  "    pm.expect(account.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(account.balance).to.eql(Number(pm.collectionVariables.get('expectedBalanceAfterFirstSuccess')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        },
+        {
+          "name": "18 Reuse product released by compensation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order creation returns 202', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "const order = pm.response.json();",
+                  "pm.collectionVariables.set('recoveryOrderId', order.id);",
+                  "pm.collectionVariables.set('pollAttempt', '0');",
+                  "pm.test('order saga was accepted', function () {",
+                  "    pm.expect(order.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(order.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(order.price).to.eql(Number(pm.collectionVariables.get('orderPrice')));",
+                  "    pm.expect(['payment_pending', 'inventory_pending', 'delivery_pending', 'completed']).to.include(order.status);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{recoveryIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{orderPrice}},\n  \"productId\": \"{{deliveryFailureProduct}}\",\n  \"courierId\": \"{{recoveryCourier}}\",\n  \"deliverySlot\": \"{{recoverySlot}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "19 Wait for recovery Saga",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const order = pm.response.json();",
+                  "    const expectedId = pm.collectionVariables.get('recoveryOrderId');",
+                  "    const attempt = Number(pm.collectionVariables.get('pollAttempt'));",
+                  "    const maxAttempts = Number(pm.collectionVariables.get('pollMaxAttempts'));",
+                  "    pm.expect(order.id).to.eql(expectedId);",
+                  "",
+                  "    if (order.status === 'completed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached completed', function () {",
+                  "            pm.expect(order.status).to.eql('completed');",
+                  "        });",
+                  "    } else if (order.status === 'completed' || order.status === 'failed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order did not reach an unexpected terminal state', function () {",
+                  "            pm.expect.fail('expected completed, got ' + order.status + ': ' + (order.failureReason || ''));",
+                  "        });",
+                  "    } else if (attempt < maxAttempts) {",
+                  "        pm.collectionVariables.set('pollAttempt', String(attempt + 1));",
+                  "        console.log('[poll] order ' + expectedId + ' is ' + order.status + ', attempt ' + (attempt + 1) + '/' + maxAttempts);",
+                  "        pm.execution.setNextRequest(pm.info.requestName);",
+                  "        setTimeout(function () {}, Number(pm.collectionVariables.get('pollDelayMs')));",
+                  "    } else {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached terminal state before timeout', function () {",
+                  "            pm.expect.fail('order ' + expectedId + ' is still ' + order.status);",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders/{{recoveryOrderId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{recoveryOrderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "20 Verify second successful charge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const account = pm.response.json();",
+                  "pm.test('balance has expected value', function () {",
+                  "    pm.expect(account.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(account.balance).to.eql(Number(pm.collectionVariables.get('expectedFinalBalance')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Billing failure and final invariants",
+      "item": [
+        {
+          "name": "21 Create order with insufficient funds",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order creation returns 202', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "const order = pm.response.json();",
+                  "pm.collectionVariables.set('billingFailureOrderId', order.id);",
+                  "pm.collectionVariables.set('pollAttempt', '0');",
+                  "pm.test('order saga was accepted', function () {",
+                  "    pm.expect(order.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(order.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(order.price).to.eql(Number(pm.collectionVariables.get('insufficientOrderPrice')));",
+                  "    pm.expect(['payment_pending', 'inventory_pending', 'delivery_pending', 'completed']).to.include(order.status);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{billingFailureIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{insufficientOrderPrice}},\n  \"productId\": \"{{billingFailureProduct}}\",\n  \"courierId\": \"{{billingFailureCourier}}\",\n  \"deliverySlot\": \"{{billingFailureSlot}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "22 Wait for Billing failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const order = pm.response.json();",
+                  "    const expectedId = pm.collectionVariables.get('billingFailureOrderId');",
+                  "    const attempt = Number(pm.collectionVariables.get('pollAttempt'));",
+                  "    const maxAttempts = Number(pm.collectionVariables.get('pollMaxAttempts'));",
+                  "    pm.expect(order.id).to.eql(expectedId);",
+                  "",
+                  "    if (order.status === 'failed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached failed', function () {",
+                  "            pm.expect(order.status).to.eql('failed');",
+                  "            pm.expect(order.failureStage).to.eql('billing');",
+                  "            pm.expect(order.failureReason).to.include('insufficient funds');",
+                  "        });",
+                  "    } else if (order.status === 'completed' || order.status === 'failed') {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order did not reach an unexpected terminal state', function () {",
+                  "            pm.expect.fail('expected failed, got ' + order.status + ': ' + (order.failureReason || ''));",
+                  "        });",
+                  "    } else if (attempt < maxAttempts) {",
+                  "        pm.collectionVariables.set('pollAttempt', String(attempt + 1));",
+                  "        console.log('[poll] order ' + expectedId + ' is ' + order.status + ', attempt ' + (attempt + 1) + '/' + maxAttempts);",
+                  "        pm.execution.setNextRequest(pm.info.requestName);",
+                  "        setTimeout(function () {}, Number(pm.collectionVariables.get('pollDelayMs')));",
+                  "    } else {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('order reached terminal state before timeout', function () {",
+                  "            pm.expect.fail('order ' + expectedId + ' is still ' + order.status);",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders/{{billingFailureOrderId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{billingFailureOrderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "23 Verify failed payment did not change balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('billing account request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const account = pm.response.json();",
+                  "pm.test('balance has expected value', function () {",
+                  "    pm.expect(account.userId).to.eql(Number(pm.collectionVariables.get('userId')));",
+                  "    pm.expect(account.balance).to.eql(Number(pm.collectionVariables.get('expectedFinalBalance')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/billing/account",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "billing",
+                "account"
+              ]
+            }
+          }
+        },
+        {
+          "name": "24 Verify order count and idempotency invariant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('orders request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const orders = pm.response.json();",
+                  "const expectedIds = [",
+                  "    pm.collectionVariables.get('successfulOrderId'),",
+                  "    pm.collectionVariables.get('warehouseFailureOrderId'),",
+                  "    pm.collectionVariables.get('deliveryFailureOrderId'),",
+                  "    pm.collectionVariables.get('recoveryOrderId'),",
+                  "    pm.collectionVariables.get('billingFailureOrderId')",
+                  "];",
+                  "pm.test('exactly five orders were created', function () {",
+                  "    pm.expect(orders).to.have.length(5);",
+                  "    pm.expect(orders.map(function (order) { return order.id; }).sort()).to.eql(expectedIds.sort());",
+                  "});",
+                  "pm.test('two Sagas completed and three failed', function () {",
+                  "    pm.expect(orders.filter(function (order) { return order.status === 'completed'; })).to.have.length(2);",
+                  "    pm.expect(orders.filter(function (order) { return order.status === 'failed'; })).to.have.length(3);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "25 Verify notifications for every saga outcome",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('notification request returns 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "    const notifications = pm.response.json();",
+                  "    const expected = {};",
+                  "    expected[pm.collectionVariables.get('successfulOrderId')] = { status: 'completed', subject: 'Order completed' };",
+                  "    expected[pm.collectionVariables.get('recoveryOrderId')] = { status: 'completed', subject: 'Order completed' };",
+                  "    expected[pm.collectionVariables.get('warehouseFailureOrderId')] = { status: 'failed', subject: 'Order inventory reservation failed' };",
+                  "    expected[pm.collectionVariables.get('deliveryFailureOrderId')] = { status: 'failed', subject: 'Order delivery reservation failed' };",
+                  "    expected[pm.collectionVariables.get('billingFailureOrderId')] = { status: 'failed', subject: 'Order payment failed' };",
+                  "    const received = notifications.filter(function (item) { return expected[item.orderId]; });",
+                  "    const attempt = Number(pm.collectionVariables.get('pollAttempt'));",
+                  "    const maxAttempts = Number(pm.collectionVariables.get('pollMaxAttempts'));",
+                  "    if (received.length < Object.keys(expected).length && attempt < maxAttempts) {",
+                  "        pm.collectionVariables.set('pollAttempt', String(attempt + 1));",
+                  "        pm.execution.setNextRequest(pm.info.requestName);",
+                  "        setTimeout(function () {}, Number(pm.collectionVariables.get('pollDelayMs')));",
+                  "    } else if (received.length < Object.keys(expected).length) {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('all saga notifications arrived before timeout', function () {",
+                  "            pm.expect.fail('expected 5 saga notifications, got ' + received.length);",
+                  "        });",
+                  "    } else {",
+                  "        pm.collectionVariables.set('pollAttempt', '0');",
+                  "        pm.test('each saga outcome produced the expected notification', function () {",
+                  "            pm.expect(received).to.have.length(5);",
+                  "            received.forEach(function (notification) {",
+                  "                pm.expect(notification.orderStatus).to.eql(expected[notification.orderId].status);",
+                  "                pm.expect(notification.subject).to.eql(expected[notification.orderId].subject);",
+                  "            });",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{baseUrl}}/api/v1/notifications",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

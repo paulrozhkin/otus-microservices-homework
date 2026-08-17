@@ -1,0 +1,58 @@
+flowchart LR
+    client["Client / Newman<br/>arch.homework"]
+
+    subgraph cluster["Kubernetes namespace: online-store"]
+        ingress["nginx Ingress<br/>cookie auth via /auth"]
+
+        subgraph applications["Application services — 2 replicas each"]
+            users["User Service"]
+            orders["Order Service<br/>Saga orchestrator"]
+            billing["Billing Service"]
+            warehouse["Warehouse Service"]
+            delivery["Delivery Service"]
+            notifications["Notification Service"]
+        end
+
+        userdb[("User PostgreSQL")]
+        orderdb[("Order PostgreSQL<br/>orders, idempotency, outbox")]
+        billingdb[("Billing PostgreSQL<br/>accounts, operations, outbox")]
+        warehousedb[("Warehouse PostgreSQL<br/>reservations, operations, outbox")]
+        deliverydb[("Delivery PostgreSQL<br/>reservations, operations, outbox")]
+        notificationdb[("Notification PostgreSQL<br/>email messages")]
+
+        kafka[["Kafka<br/>billing.commands.v1<br/>warehouse.commands.v1<br/>delivery.commands.v1<br/>order.saga.events.v1<br/>notification.commands.v1"]]
+        kafkaui["Kafbat UI"]
+    end
+
+    client -->|"HTTP API"| ingress
+    ingress --> users
+    ingress --> orders
+    ingress --> billing
+    ingress --> notifications
+
+    users --> userdb
+    users -->|"create account"| billing
+    orders --> orderdb
+    billing --> billingdb
+    warehouse --> warehousedb
+    delivery --> deliverydb
+    notifications --> notificationdb
+
+    orders -->|"commands via outbox"| kafka
+    kafka --> billing
+    kafka --> warehouse
+    kafka --> delivery
+    billing -->|"Saga results via outbox"| kafka
+    warehouse -->|"Saga results via outbox"| kafka
+    delivery -->|"Saga results via outbox"| kafka
+    kafka -->|"Saga results"| orders
+    kafka -->|"final notification"| notifications
+
+    kafkaui -.->|"topics and consumer groups"| kafka
+
+    classDef service fill:#e8f0fe,stroke:#3167b1,color:#13233a
+    classDef database fill:#fff4d6,stroke:#a46b00,color:#352200
+    classDef broker fill:#e8f7ec,stroke:#287a3e,color:#12351d
+    class users,orders,billing,warehouse,delivery,notifications service
+    class userdb,orderdb,billingdb,warehousedb,deliverydb,notificationdb database
+    class kafka broker

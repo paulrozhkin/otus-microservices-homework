@@ -1,0 +1,37 @@
+global:
+  imagePullPolicy: IfNotPresent
+
+enabled: true
+componentName: kafka
+image:
+  repository: apache/kafka
+  tag: "3.9.1"
+defaultPartitions: 2
+topics:
+  - name: billing.commands.v1
+    partitions: 2
+    replicationFactor: 1
+  - name: warehouse.commands.v1
+    partitions: 2
+    replicationFactor: 1
+  - name: delivery.commands.v1
+    partitions: 2
+    replicationFactor: 1
+  - name: order.saga.events.v1
+    partitions: 2
+    replicationFactor: 1
+  - name: notification.commands.v1
+    partitions: 2
+    replicationFactor: 1
+persistence:
+  enabled: true
+  size: 500Mi
+  storageClass: ""
+resources: {}
+ui:
+  enabled: true
+  image:
+    repository: ghcr.io/kafbat/kafka-ui
+    tag: latest
+  port: 8080
+  resources: {}

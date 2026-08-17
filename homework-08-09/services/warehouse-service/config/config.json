@@ -1,0 +1,7 @@
+{
+  "app": {"name": "warehouse-service", "env": "development"},
+  "http": {"addr": "0.0.0.0:8004", "readTimeout": "5s", "writeTimeout": "10s", "idleTimeout": "60s", "shutdownTimeout": "15s"},
+  "db": {"host": "localhost", "port": 5437, "user": "warehouse_service", "password": "warehouse_service", "dbName": "warehouse_service", "sslmode": "disable", "timeZone": "UTC"},
+  "kafka": {"brokers": "localhost:9092", "topic": "warehouse.commands.v1", "groupId": "warehouse-service-v1"},
+  "outbox": {"pollInterval": "500ms"}
+}

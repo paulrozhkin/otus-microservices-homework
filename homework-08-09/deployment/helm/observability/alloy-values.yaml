@@ -1,0 +1,86 @@
+controller:
+  type: deployment
+  replicas: 1
+
+alloy:
+  configMap:
+    content: |
+      logging {
+        level  = "info"
+        format = "logfmt"
+      }
+
+      discovery.kubernetes "pods" {
+        role = "pod"
+        namespaces {
+          names = ["online-store"]
+        }
+      }
+
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "service"
+        }
+
+        rule {
+          target_label = "environment"
+          replacement  = "kubernetes"
+        }
+      }
+
+      loki.source.kubernetes "pod_logs" {
+        targets    = discovery.relabel.pod_logs.output
+        forward_to = [loki.process.pod_logs.receiver]
+      }
+
+      loki.process "pod_logs" {
+        stage.json {
+          expressions = {
+            level      = "level",
+            message    = "msg",
+            request_id = "request_id",
+            status     = "status",
+            path       = "path",
+          }
+        }
+
+        stage.labels {
+          values = {
+            level = "",
+          }
+        }
+
+        stage.structured_metadata {
+          values = {
+            request_id = "",
+            status     = "",
+            path       = "",
+          }
+        }
+
+        forward_to = [loki.write.local.receiver]
+      }
+
+      loki.write "local" {
+        endpoint {
+          url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+        }
+      }

@@ -1,0 +1,27 @@
+{
+  "app": {
+    "name": "notification-service",
+    "env": "development"
+  },
+  "http": {
+    "addr": "0.0.0.0:8003",
+    "readTimeout": "5s",
+    "writeTimeout": "10s",
+    "idleTimeout": "60s",
+    "shutdownTimeout": "15s"
+  },
+  "db": {
+    "host": "localhost",
+    "port": 5436,
+    "user": "notification_service",
+    "password": "notification_service",
+    "dbName": "notification_service",
+    "sslmode": "disable",
+    "timeZone": "UTC"
+  },
+  "kafka": {
+    "brokers": "localhost:9092",
+    "topic": "notification.commands.v1",
+    "groupId": "notification-service-v1"
+  }
+}

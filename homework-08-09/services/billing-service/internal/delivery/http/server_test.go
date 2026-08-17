@@ -1,0 +1,107 @@
+package http
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/apperror"
+	platformconfig "github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/internal/platform/config"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/billing-service/internal/config"
+	"github.com/paulrozhkin/otus-microservices-homework/otus-microservices-homework-08-09/services/billing-service/internal/entity"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+)
+
+type fakeBillingRepository struct {
+	account  *entity.Account
+	debitErr error
+}
+
+func (f *fakeBillingRepository) CreateAccount(_ context.Context, userID int64) (*entity.Account, bool, error) {
+	f.account = &entity.Account{UserID: userID}
+	return f.account, true, nil
+}
+func (f *fakeBillingRepository) GetAccount(context.Context, int64) (*entity.Account, error) {
+	return f.account, nil
+}
+func (f *fakeBillingRepository) Credit(_ context.Context, _ string, userID, amount int64, _ string) (*entity.Account, error) {
+	f.account = &entity.Account{UserID: userID, Balance: amount}
+	return f.account, nil
+}
+func (f *fakeBillingRepository) Debit(context.Context, string, int64, int64, string) (*entity.Account, error) {
+	return f.account, f.debitErr
+}
+func (f *fakeBillingRepository) Refund(context.Context, string) (*entity.Account, error) {
+	return f.account, nil
+}
+
+func newTestRouter(repository *fakeBillingRepository) http.Handler {
+	gin.SetMode(gin.TestMode)
+	return NewRouter(RouterConfig{
+		Config: config.Config{BaseConfig: platformconfig.BaseConfig{App: platformconfig.AppConfig{Env: platformconfig.DevelopmentEnv}}},
+		Logger: zap.NewNop(), Repository: repository,
+	})
+}
+
+func TestCreateAccount(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/internal/v1/accounts/42", nil)
+	newTestRouter(&fakeBillingRepository{}).ServeHTTP(w, req)
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.Contains(t, w.Body.String(), `"userId":42`)
+	require.Contains(t, w.Body.String(), `"balance":0`)
+}
+
+func TestDepositUsesAuthenticatedUser(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/deposits", strings.NewReader(`{"amount":10000,"operationId":"deposit-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Auth-UserId", "42")
+	newTestRouter(&fakeBillingRepository{}).ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"balance":10000`)
+}
+
+func TestPaymentRejectsInsufficientFunds(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/internal/v1/payments", strings.NewReader(`{"operationId":"order-1","userId":42,"amount":10000}`))
+	req.Header.Set("Content-Type", "application/json")
+	newTestRouter(&fakeBillingRepository{debitErr: errors.Join(errors.New("wrapped"), apperror.ErrInsufficientFunds)}).ServeHTTP(w, req)
+	require.Equal(t, http.StatusConflict, w.Code)
+	require.Contains(t, w.Body.String(), "insufficient funds")
+}
+
+func TestBillingAPIRequiresAuthHeader(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/billing/account", nil)
+	newTestRouter(&fakeBillingRepository{}).ServeHTTP(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestBillingSwagger(t *testing.T) {
+	router := newTestRouter(&fakeBillingRepository{})
+
+	t.Run("yaml", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/swagger.yaml", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Contains(t, w.Header().Get("Content-Type"), "application/yaml")
+		require.Contains(t, w.Body.String(), "title: Billing Service")
+		require.Contains(t, w.Body.String(), "/api/v1/billing/deposits:")
+		require.Contains(t, w.Body.String(), "/internal/v1/payments:")
+	})
+
+	t.Run("ui", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/swagger", nil))
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Contains(t, w.Header().Get("Content-Type"), "text/html")
+		require.Contains(t, w.Body.String(), "Billing Service Swagger")
+		require.Contains(t, w.Body.String(), `url: "/swagger.yaml"`)
+	})
+}

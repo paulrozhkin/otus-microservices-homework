@@ -1,0 +1,276 @@
+asyncapi: 3.0.0
+info:
+  title: Online Store Saga Messages
+  version: 1.0.0
+  description: Kafka contracts for the sequential order saga. Every message uses orderId as the Kafka key and sagaId.
+defaultContentType: application/json
+servers:
+  kafka:
+    host: online-store-kafka:29092
+    protocol: kafka
+channels:
+  billingCommands:
+    address: billing.commands.v1
+    messages:
+      chargePayment:
+        $ref: '#/components/messages/ChargePayment'
+      refundPayment:
+        $ref: '#/components/messages/RefundPayment'
+  warehouseCommands:
+    address: warehouse.commands.v1
+    messages:
+      reserveInventory:
+        $ref: '#/components/messages/ReserveInventory'
+      releaseInventory:
+        $ref: '#/components/messages/ReleaseInventory'
+  deliveryCommands:
+    address: delivery.commands.v1
+    messages:
+      reserveDelivery:
+        $ref: '#/components/messages/ReserveDelivery'
+  orderSagaEvents:
+    address: order.saga.events.v1
+    messages:
+      sagaResult:
+        $ref: '#/components/messages/SagaResult'
+  notificationCommands:
+    address: notification.commands.v1
+    messages:
+      notificationRequested:
+        $ref: '#/components/messages/NotificationRequested'
+operations:
+  orderSendsBillingCommands:
+    action: send
+    channel:
+      $ref: '#/channels/billingCommands'
+  orderSendsWarehouseCommands:
+    action: send
+    channel:
+      $ref: '#/channels/warehouseCommands'
+  orderSendsDeliveryCommands:
+    action: send
+    channel:
+      $ref: '#/channels/deliveryCommands'
+  orderReceivesSagaEvents:
+    action: receive
+    channel:
+      $ref: '#/channels/orderSagaEvents'
+  orderSendsNotificationCommands:
+    action: send
+    channel:
+      $ref: '#/channels/notificationCommands'
+components:
+  messages:
+    ChargePayment:
+      name: billing.payment.charge.requested.v1
+      payload:
+        $ref: '#/components/schemas/ChargePaymentEnvelope'
+    RefundPayment:
+      name: billing.payment.refund.requested.v1
+      payload:
+        $ref: '#/components/schemas/RefundPaymentEnvelope'
+    ReserveInventory:
+      name: warehouse.inventory.reserve.requested.v1
+      payload:
+        $ref: '#/components/schemas/ReserveInventoryEnvelope'
+    ReleaseInventory:
+      name: warehouse.inventory.release.requested.v1
+      payload:
+        $ref: '#/components/schemas/ReleaseInventoryEnvelope'
+    ReserveDelivery:
+      name: delivery.slot.reserve.requested.v1
+      payload:
+        $ref: '#/components/schemas/ReserveDeliveryEnvelope'
+    SagaResult:
+      name: order.saga.result.v1
+      description: Billing, warehouse, or delivery result selected by messageType.
+      payload:
+        $ref: '#/components/schemas/ResultEnvelope'
+    NotificationRequested:
+      name: notification.requested.v1
+      payload:
+        $ref: '#/components/schemas/NotificationEnvelope'
+  schemas:
+    EnvelopeFields:
+      type: object
+      required: [messageId, messageType, sagaId, correlationId, occurredAt, payload]
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        messageType:
+          type: string
+        sagaId:
+          type: string
+          format: uuid
+        correlationId:
+          type: string
+          format: uuid
+        causationId:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+    ChargePaymentEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: billing.payment.charge.requested.v1
+            payload:
+              $ref: '#/components/schemas/ChargePayment'
+    RefundPaymentEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: billing.payment.refund.requested.v1
+            payload:
+              $ref: '#/components/schemas/RefundPayment'
+    ReserveInventoryEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: warehouse.inventory.reserve.requested.v1
+            payload:
+              $ref: '#/components/schemas/ReserveInventory'
+    ReleaseInventoryEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: warehouse.inventory.release.requested.v1
+            payload:
+              $ref: '#/components/schemas/ReleaseInventory'
+    ReserveDeliveryEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: delivery.slot.reserve.requested.v1
+            payload:
+              $ref: '#/components/schemas/ReserveDelivery'
+    ResultEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              enum:
+                - billing.payment.succeeded.v1
+                - billing.payment.failed.v1
+                - billing.payment.refunded.v1
+                - warehouse.inventory.reserved.v1
+                - warehouse.inventory.reservation-failed.v1
+                - warehouse.inventory.released.v1
+                - delivery.slot.reserved.v1
+                - delivery.slot.reservation-failed.v1
+            payload:
+              $ref: '#/components/schemas/OperationResult'
+    NotificationEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeFields'
+        - type: object
+          properties:
+            messageType:
+              const: notification.requested.v1
+            payload:
+              $ref: '#/components/schemas/SendNotification'
+    ChargePayment:
+      type: object
+      required: [orderId, operationId, userId, amount]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+    RefundPayment:
+      type: object
+      required: [orderId, operationId, originalOperationId]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+        originalOperationId:
+          type: string
+    ReserveInventory:
+      type: object
+      required: [orderId, operationId, productId]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+        productId:
+          type: string
+    ReleaseInventory:
+      type: object
+      required: [orderId, operationId, productId]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+        productId:
+          type: string
+    ReserveDelivery:
+      type: object
+      required: [orderId, operationId, courierId, deliverySlot]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+        courierId:
+          type: string
+        deliverySlot:
+          type: string
+    OperationResult:
+      type: object
+      required: [orderId]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+    SendNotification:
+      type: object
+      required: [orderId, userId, email, orderStatus, subject, body]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        userId:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        orderStatus:
+          type: string
+          const: completed
+        subject:
+          type: string
+        body:
+          type: string

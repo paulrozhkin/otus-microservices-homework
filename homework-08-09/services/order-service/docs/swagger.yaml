@@ -1,0 +1,273 @@
+openapi: 3.0.3
+info:
+  title: Order Service
+  version: "1.0.0"
+  description: |
+    Creates and lists orders for the authenticated user. Monetary values are
+    represented as integer minor units. Order creation starts an asynchronous
+    Kafka-based saga and returns its initial state.
+servers:
+  - description: Local server
+    url: http://localhost:8002
+  - description: Kubernetes ingress
+    url: http://arch.homework
+tags:
+  - name: orders
+    description: Operations with the authenticated user's orders
+  - name: health
+    description: Kubernetes probes
+paths:
+  /api/v1/orders:
+    post:
+      tags: [orders]
+      summary: Create an order
+      description: |
+        Atomically creates an order in payment_pending state and an Outbox command
+        requesting Billing to charge the current user's account.
+      operationId: createOrder
+      security:
+        - GatewayAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AuthEmail"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+            example:
+              price: 4000
+              productId: iphone-15-black
+              courierId: courier-1
+              deliverySlot: 2026-08-20T10:00:00Z/2026-08-20T12:00:00Z
+      responses:
+        "202":
+          description: Order saga was accepted for asynchronous processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+        default:
+          $ref: "#/components/responses/UnexpectedError"
+    get:
+      tags: [orders]
+      summary: List current user's orders
+      operationId: listOrders
+      security:
+        - GatewayAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AuthEmail"
+      responses:
+        "200":
+          description: Orders ordered from newest to oldest
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        default:
+          $ref: "#/components/responses/UnexpectedError"
+  /api/v1/orders/{orderId}:
+    get:
+      tags: [orders]
+      summary: Get an order
+      operationId: getOrder
+      security:
+        - GatewayAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+        - $ref: "#/components/parameters/AuthEmail"
+      responses:
+        "200":
+          description: Order owned by the current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/UnexpectedError"
+  /livez:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      operationId: liveness
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+  /readyz:
+    get:
+      tags: [health]
+      summary: Readiness probe
+      operationId: readiness
+      responses:
+        "200":
+          description: Service and database are ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+components:
+  securitySchemes:
+    GatewayAuth:
+      type: apiKey
+      in: header
+      name: X-Auth-UserId
+      description: Trusted user id supplied by ingress after session validation.
+  parameters:
+    AuthEmail:
+      name: X-Auth-Email
+      in: header
+      required: true
+      description: Trusted user email supplied by ingress after session validation.
+      schema:
+        type: string
+        format: email
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Identifies one create-order request for the current user. Reusing the key
+        with the same payload returns the existing order; another payload returns 409.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required: [price, productId, courierId, deliverySlot]
+      properties:
+        price:
+          type: integer
+          format: int64
+          minimum: 1
+        productId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        courierId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        deliverySlot:
+          type: string
+          minLength: 1
+          maxLength: 255
+    Order:
+      type: object
+      required: [id, userId, email, price, productId, courierId, deliverySlot, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        price:
+          type: integer
+          format: int64
+          minimum: 1
+        productId:
+          type: string
+        courierId:
+          type: string
+        deliverySlot:
+          type: string
+        status:
+          type: string
+          enum: [payment_pending, inventory_pending, delivery_pending, inventory_releasing, payment_refunding, completed, failed]
+        failureStage:
+          type: string
+          enum: [billing, warehouse, delivery]
+        failureReason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Authentication context is missing
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Order was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    IdempotencyConflict:
+      description: Idempotency-Key was already used with another request payload
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServiceUnavailable:
+      description: Service is not ready
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnexpectedError:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

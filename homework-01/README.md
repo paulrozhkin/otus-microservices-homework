@@ -40,10 +40,9 @@ https://nealford.com/katas/list.html
 | Пункт задания                                             | Документ                                               |
 |-----------------------------------------------------------|--------------------------------------------------------|
 | Сценарии, паттерн декомпозиции и ответственность сервисов | [Описание архитектуры](docs/architecture.md)           |
-| C4 Context Diagram                                        | [C4 Container Diagram](docs/context.md)                |
+| C4 Context Diagram                                        | [C4 Context Diagram](docs/context.md)                  |
 | C4 Container Diagram                                      | [C4 Container Diagram](docs/containers.md)             |
 | Диаграмма процессов                                       | [Sequence diagram](docs/processes.md)                  |
-| Учет будущих изменений                                    | [Описание архитектуры, раздел 6](docs/architecture.md) |
 | Контракты взаимодействия                                  | [API и события](docs/contracts.md)                     |
 | Учет будущих изменений                                    | [Описание архитектуры, раздел 6](docs/architecture.md) |
 

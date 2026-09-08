@@ -2,7 +2,7 @@
 
 [К решению](../README.md) / [Контейнеры](containers.md) / [Контракты](contracts.md)
 
-На этих диаграммах разобраны основные сценарии из задания. Чтобы схемы не были слишком широкими, UI и Gateway указаны в подписи пользователя, а базы и брокер отдельно не показаны. Сообщения с пометкой `event:` проходят через брокер с outbox/inbox. Сплошные стрелки - запросы и действия, пунктирные - ответы и события. Стрелка к самому сервису означает локальную проверку или запись данных.
+На этих диаграммах разобраны основные сценарии из задания. Чтобы схемы не были слишком широкими, UI и Gateway указаны в подписи пользователя, а базы и Kafka отдельно не показаны. Сообщения с пометкой `command:` и `event:` проходят через Kafka с outbox/inbox. Между Orders и Payments нет HTTP-вызовов. Сплошные стрелки - запросы и действия, пунктирные - ответы и сообщения Kafka. Стрелка к самому сервису означает локальную проверку или запись данных.
 
 ## PV-01. Расчет и создание заказа - UC-01, UC-02, UC-03
 
@@ -47,10 +47,15 @@ sequenceDiagram
     S->>F: POST transitions, ACCEPT и readyAt
     F->>F: Сохранить резерв и событие
     F-->>O: event: FulfillmentAccepted
-    O->>P: POST /v1/payments
+    O->>O: Сохранить CREATING и команду в outbox
+    O-->>P: command: CreatePayment
+    C->>O: GET /v1/orders/{orderId}
+    O-->>C: readyAt, paymentStatus=CREATING, ссылки пока нет
     P->>X: Создать платеж
     X-->>P: Внешний ID и paymentUrl
-    P-->>O: 201 paymentId, paymentUrl
+    P->>P: Сохранить платеж и событие в outbox
+    P-->>O: event: PaymentCreated
+    O->>O: Сохранить paymentUrl и PENDING
     C->>O: GET /v1/orders/{orderId}
     O-->>C: readyAt, paymentUrl, ожидается оплата
     C->>F: POST /v1/routes, маршрут до точки
@@ -67,11 +72,12 @@ sequenceDiagram
     S->>F: POST transitions, START
     F-->>O: event: FulfillmentUpdated PREPARING
     S->>F: POST transitions, READY
-    F-->>O: event: FulfillmentUpdated READY
+    F-->>O: event: AwaitingPickup
     C->>O: GET /v1/orders/{orderId}
     O-->>C: Заказ готов, время и адрес точки
     S->>F: POST transitions, COMPLETE после выдачи
-    F-->>O: event: FulfillmentUpdated COMPLETED
+    F-->>O: event: OrderReceived
+    O->>O: Установить статус COMPLETED
 ```
 
 Здесь оплата обработана до окончания резерва. При отказе точки `FulfillmentRejected` завершает процесс без создания платежа. При ошибке карт сохраняются адрес и время готовности; оплата и приготовление продолжаются. Переход `COMPLETE` проверяет готовность и наличие `HandoverAuthorized`. Возврат браузера со страницы оплаты не используется как подтверждение списания.
@@ -95,8 +101,8 @@ sequenceDiagram
     S->>F: POST transitions, START
     F-->>O: event: FulfillmentUpdated PREPARING
     S->>F: POST transitions, READY
-    F-->>O: event: FulfillmentUpdated READY
     S->>F: POST transitions, ASSIGN_DRIVER с driverId
+    F-->>O: event: AwaitingDelivery
     D->>F: POST /v1/routes, от точки к покупателю
     F->>Maps: Получить маршрут и время с пробками
     Maps-->>F: Маршрут и оценка времени
@@ -105,14 +111,15 @@ sequenceDiagram
     F-->>O: event: FulfillmentUpdated DISPATCHED
     Note over D,P: Водитель прибыл и получил оплату от покупателя
     D->>O: POST /v1/orders/{orderId}/collection
-    O->>P: POST /v1/payments/collections
+    O->>O: Сохранить команду в outbox
+    O-->>D: 202 запрос на регистрацию оплаты принят
+    O-->>P: command: RecordCollection
     P->>P: Сохранить факт оплаты и outbox
-    P-->>O: 201 paymentId, SUCCEEDED
-    O-->>D: 202 регистрация инициирована
     P-->>O: event: PaymentSucceeded
     O-->>F: event: HandoverAuthorized
     D->>F: POST transitions, COMPLETE после выдачи
-    F-->>O: event: FulfillmentUpdated COMPLETED
+    F-->>O: event: OrderReceived
+    O->>O: Установить статус COMPLETED
 ```
 
 Оплата при получении не вызывает онлайн-платежного провайдера: Payments учитывает факт, зарегистрированный водителем с нужными правами. Приготовление разрешено ранее, поэтому повторное разрешение приготовления по `PaymentSucceeded` не требуется. Если событие оплаты еще не доставлено, `COMPLETE` возвращает конфликт состояния; интерфейс обновляет задание и позволяет повторить действие после разрешения. Без водителя отправка невозможна, сотрудник уточняет время или фиксирует невозможность исполнения через `FAIL`.
@@ -135,11 +142,10 @@ sequenceDiagram
     X->>P: Поздний webhook об успешном списании
     P->>P: Проверить и сохранить платеж с outbox
     P-->>O: event: PaymentSucceeded
-    O->>O: Заказ отменен, установить REFUND_PENDING
-    O->>P: POST /v1/payments/{paymentId}/refunds
+    O->>O: Сохранить REFUND_PENDING и команду в outbox
+    O-->>P: command: RefundPayment
     P->>X: Запросить полный возврат с постоянным ключом
     X-->>P: Возврат принят в обработку
-    P-->>O: 202 refundId, PENDING
     X->>P: Подтверждение возврата
     P-->>O: event: PaymentRefunded
     O->>O: Сохранить REFUNDED, заказ остается CANCELLED
